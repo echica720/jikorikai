@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星読み × AI自己理解メソッド</title>
+<style>
+:root{--gold:#b8965a;--gold-light:#d4b483;--deep:#2d2420;--paper:#f7f3ee;--mist:#e8e2d9;--ink:#1a1410;--accent:#7a5c3a;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Hiragino Mincho ProN','Yu Mincho',serif;background:var(--deep);color:var(--paper);min-height:100vh;}
+#operator-screen{display:flex;flex-direction:column;align-items:center;padding:40px 16px;}
+#client-screen{display:none;min-height:100vh;background:var(--paper);}
+.card{background:rgba(255,255,255,.04);border:1px solid rgba(184,150,90,.25);padding:40px;width:100%;max-width:680px;border-radius:2px;}
+.ttl{font-size:13px;letter-spacing:6px;color:var(--gold-light);text-align:center;margin-bottom:6px;}
+.sub{font-size:11px;letter-spacing:3px;color:rgba(184,150,90,.5);text-align:center;margin-bottom:36px;}
+.sec{font-size:10px;letter-spacing:4px;color:var(--gold);text-transform:uppercase;margin:24px 0 12px;padding-bottom:8px;border-bottom:1px solid rgba(184,150,90,.2);}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.row{display:flex;align-items:center;gap:8px;}
+.lbl{font-size:11px;color:rgba(212,180,131,.8);width:52px;flex-shrink:0;}
+.row select, .row-asc select{flex:1;}
+select,input,textarea{background:rgba(255,255,255,.05);border:1px solid rgba(184,150,90,.2);border-radius:1px;color:var(--paper);font-family:inherit;font-size:12px;padding:7px 8px;width:100%;transition:border-color .2s;}
+select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23b8965a'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:22px;}
+select option{background:#2d2420;}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--gold);}
+input::placeholder,textarea::placeholder{color:rgba(212,180,131,.3);font-size:11px;}
+textarea{resize:vertical;min-height:72px;line-height:1.9;}
+.special{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.notebox{background:rgba(184,150,90,.05);border:1px solid rgba(184,150,90,.25);padding:14px;margin-top:4px;}
+.notehint{font-size:10px;color:rgba(184,150,90,.5);margin-bottom:8px;line-height:1.8;}
+.btn{width:100%;margin-top:28px;padding:14px;background:transparent;border:1px solid var(--gold);color:var(--gold-light);font-family:Georgia,serif;font-size:14px;letter-spacing:6px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;}
+.btn::before{content:'';position:absolute;inset:0;background:var(--gold);transform:translateX(-100%);transition:transform .3s;z-index:0;}
+.btn:hover::before{transform:translateX(0);}.btn:hover{color:var(--deep);}
+.btn span{position:relative;z-index:1;}
+.resultbox{margin-top:24px;padding:18px;background:rgba(184,150,90,.06);border:1px solid rgba(184,150,90,.3);display:none;}
+.resultlbl{font-size:10px;letter-spacing:4px;color:var(--gold);margin-bottom:10px;}
+.resulturl{font-size:11px;color:var(--paper);word-break:break-all;line-height:1.8;padding:10px;background:rgba(0,0,0,.2);cursor:pointer;}
+.resulturl:hover{background:rgba(0,0,0,.35);}
+.copyhint{font-size:10px;color:rgba(184,150,90,.5);margin-top:6px;}
+.expiry{font-size:10px;color:rgba(212,180,131,.4);margin-top:4px;}
+.errmsg{color:#c97b5a;font-size:11px;margin-top:8px;display:none;}
+/* client */
+.cheader{background:var(--deep);padding:20px;text-align:center;border-bottom:1px solid rgba(184,150,90,.2);position:sticky;top:0;z-index:10;}
+.ctitle{font-size:13px;letter-spacing:5px;color:var(--gold-light);}
+.chatbox{max-width:700px;margin:0 auto;padding:32px 20px 130px;}
+.intro{text-align:center;padding:40px 0 32px;}
+.intro-sym{font-size:28px;color:var(--gold);display:block;margin-bottom:12px;}
+.intro-txt{font-size:13px;color:var(--accent);letter-spacing:2px;line-height:2.2;}
+.msgs{display:flex;flex-direction:column;gap:20px;}
+.msg{opacity:0;animation:fu .5s ease forwards;}
+.msg.ai{align-self:flex-start;max-width:88%;}
+.msg.user{align-self:flex-end;max-width:75%;}
+.bubble{padding:16px 20px;border-radius:2px;line-height:2;font-size:14px;}
+.msg.ai .bubble{background:white;color:var(--ink);border:1px solid var(--mist);border-left:2px solid var(--gold);box-shadow:2px 4px 16px rgba(0,0,0,.05);}
+.msg.user .bubble{background:var(--deep);color:var(--paper);border:1px solid rgba(184,150,90,.2);}
+.sender{font-size:10px;letter-spacing:3px;margin-bottom:6px;text-transform:uppercase;}
+.msg.ai .sender{color:var(--gold);}
+.msg.user .sender{display:none;}
+.typing{display:none;align-self:flex-start;padding:12px 18px;background:white;border:1px solid var(--mist);border-left:2px solid var(--gold);}
+.dots{display:flex;gap:5px;}
+.dots span{width:5px;height:5px;border-radius:50%;background:var(--gold-light);animation:bounce 1.2s infinite;}
+.dots span:nth-child(2){animation-delay:.2s;}.dots span:nth-child(3){animation-delay:.4s;}
+@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4;}30%{transform:translateY(-6px);opacity:1;}}
+.inputarea{position:fixed;bottom:0;left:0;right:0;background:rgba(247,243,238,.96);backdrop-filter:blur(10px);border-top:1px solid var(--mist);padding:14px 20px;}
+.inputinner{max-width:700px;margin:0 auto;display:flex;gap:10px;align-items:flex-end;}
+.userinput{flex:1;background:white;border:1px solid var(--mist);padding:10px 14px;font-family:inherit;font-size:14px;color:var(--ink);resize:none;min-height:44px;max-height:120px;line-height:1.6;border-radius:2px;}
+.userinput:focus{outline:none;border-color:var(--gold);}
+.sendbtn{width:44px;height:44px;background:var(--deep);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sendbtn:hover{background:var(--accent);}
+.sendbtn svg{width:18px;height:18px;fill:var(--gold);}
+@keyframes fu{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<!-- 認定者画面 -->
+<div id="operator-screen">
+<div class="card">
+  <div class="ttl">星読み × AI自己理解メソッド</div>
+  <div class="sub">Certified Practitioner Panel</div>
+
+  <div class="sec">クライアント情報</div>
+  <input type="text" id="client-name" placeholder="クライアントのお名前（任意）" />
+
+  <div class="sec">天体・星座・ハウス</div>
+  <div class="grid">
+    <div class="row"><span class="lbl">太陽</span>
+      <select id="sun-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="sun-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">月</span>
+      <select id="moon-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="moon-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">水星</span>
+      <select id="mercury-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="mercury-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">金星</span>
+      <select id="venus-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="venus-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">火星</span>
+      <select id="mars-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="mars-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">木星</span>
+      <select id="jupiter-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="jupiter-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">土星</span>
+      <select id="saturn-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="saturn-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">天王星</span>
+      <select id="uranus-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="uranus-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">海王星</span>
+      <select id="neptune-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="neptune-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">冥王星</span>
+      <select id="pluto-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="pluto-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">キロン</span>
+      <select id="chiron-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="chiron-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+    <div class="row"><span class="lbl">ノード</span>
+      <select id="node-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+      <select id="node-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select>
+    </div>
+  </div>
+
+  <div class="special">
+    <div class="row"><span class="lbl">ASC</span>
+      <select id="asc-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+    </div>
+    <div class="row"><span class="lbl">MC</span>
+      <select id="mc-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select>
+    </div>
+  </div>
+
+  <div class="sec" style="margin-top:24px;">主なアスペクト</div>
+  <textarea id="aspects" placeholder="例：&#10;・太陽（牡羊座）× 土星（蠍座）― 150度&#10;・月（蟹座）× 火星（山羊座）― 180度"></textarea>
+
+  <div class="sec">認定者の個別コメント</div>
+  <div class="notebox">
+    <div class="notehint">ホロスコープを読んで特に気になった点・重点的に深めてほしいテーマを記入してください。AIはこの内容を踏まえて対話を進めます。</div>
+    <textarea id="practitioner-note" style="min-height:100px;" placeholder="例：&#10;・月×火星のオポジションが強く出ている。感情と行動の衝突パターンを中心に。&#10;・最近大きな選択を控えているとのこと。意志と恐れの関係を丁寧に。"></textarea>
+  </div>
+
+  <div class="sec">APIキー</div>
+  <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." />
+  <div style="font-size:10px;color:rgba(184,150,90,.35);margin-top:5px;">※ このキーはブラウザ内にのみ保存されます</div>
+
+  <button class="btn" onclick="generateSession()"><span>✦ &nbsp; セッションを作成する &nbsp; ✦</span></button>
+  <div class="errmsg" id="op-error"></div>
+
+  <div class="resultbox" id="result-box">
+    <div class="resultlbl">✦ &nbsp; クライアント専用URL</div>
+    <div class="resulturl" id="result-url" onclick="copyUrl()"></div>
+    <div class="copyhint">↑ クリックでコピー</div>
+    <div class="expiry" id="expiry-note"></div>
+  </div>
+</div>
+</div>
+
+<!-- クライアント画面 -->
+<div id="client-screen">
+  <div class="cheader"><div class="ctitle">星読み × AI自己理解メソッド</div></div>
+  <div class="chatbox">
+    <div class="intro" id="chat-intro">
+      <span class="intro-sym">✦</span>
+      <div class="intro-txt">あなたの星を、対話の中で読み解いていきます。<br>ここはあなたの内側と向き合う、静かな場所です。</div>
+    </div>
+    <div class="msgs" id="messages"></div>
+    <div class="typing" id="typing"><div class="dots"><span></span><span></span><span></span></div></div>
+  </div>
+  <div class="inputarea">
+    <div class="inputinner">
+      <textarea class="userinput" id="user-input" placeholder="感じたこと、思ったことを自由に..." rows="1" onkeydown="handleKey(event)"></textarea>
+      <button class="sendbtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PLANET_IDS = ['sun','moon','mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto','chiron','node'];
+const PLANET_LABELS = {'sun':'太陽','moon':'月','mercury':'水星','venus':'金星','mars':'火星','jupiter':'木星','saturn':'土星','uranus':'天王星','neptune':'海王星','pluto':'冥王星','chiron':'キロン','node':'ノード'};
+
+let sessionData = null;
+let conversationHistory = [];
+let isLoading = false;
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const sp = params.get('s');
+  if(sp) {
+    try {
+      const decoded = JSON.parse(decodeURIComponent(sp));
+      if(decoded.expires && Date.now() > decoded.expires){ showExpired(); return; }
+      const savedKey = localStorage.getItem('echica_api_key');
+      if(!savedKey){ showApiKeyPrompt(decoded); return; }
+      decoded.apiKey = savedKey;
+      sessionData = decoded;
+      showClientScreen();
+    } catch(e){
+      showError2('データの読み込みに失敗しました。URLを確認してください。');
+    }
+  } else {
+    document.getElementById('operator-screen').style.display = 'flex';
+    const saved = localStorage.getItem('echica_api_key');
+    if(saved) document.getElementById('api-key-input').value = saved;
+  }
+});
+
+function generateSession() {
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  document.getElementById('op-error').style.display = 'none';
+  
+  const planets = {};
+  PLANET_IDS.forEach(id => {
+    const sign = document.getElementById(`${id}-sign`).value;
+    const house = document.getElementById(`${id}-house`).value;
+    if(sign) planets[PLANET_LABELS[id]] = {sign, house};
+  });
+  if(Object.keys(planets).length < 3){ showOpError('天体情報を3つ以上選択してください'); return; }
+
+ 
+  const obj = {
+    planets,
+    asc: document.getElementById('asc-sign').value,
+    mc: document.getElementById('mc-sign').value,
+    aspects: document.getElementById('aspects').value.trim(),
+    practitionerNote: document.getElementById('practitioner-note').value.trim(),
+    clientName: document.getElementById('client-name').value.trim(),
+    expires: Date.now() + (30*24*60*60*1000),
+  };
+
+  const json = JSON.stringify(obj);
+  const encoded = encodeURIComponent(json);
+  const base = window.location.href.split('?')[0];
+  const url = `${base}?s=${encoded}`;
+
+  document.getElementById('result-url').textContent = url;
+  const d = new Date(obj.expires).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('expiry-note').textContent = `有効期限：${d}まで（30日間）`;
+  const rb = document.getElementById('result-box');
+  rb.style.display = 'block';
+  rb.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function showOpError(msg){ const e=document.getElementById('op-error'); e.textContent=msg; e.style.display='block'; }
+
+function copyUrl(){
+  const url = document.getElementById('result-url').textContent;
+  navigator.clipboard.writeText(url).then(()=>{
+    const el = document.getElementById('result-url');
+    const orig = el.textContent;
+    el.textContent = '✓ コピーしました';
+    setTimeout(()=>el.textContent=orig, 2000);
+  });
+}
+
+function showClientScreen(){
+  document.getElementById('operator-screen').style.display = 'none';
+  document.getElementById('client-screen').style.display = 'block';
+  setTimeout(()=>startConversation(), 600);
+}
+
+function showExpired(){
+  document.getElementById('operator-screen').style.display = 'none';
+  document.getElementById('client-screen').style.display = 'block';
+  document.getElementById('chat-intro').innerHTML = `<span class="intro-sym">✦</span><div class="intro-txt" style="color:#c97b5a;">このセッションの有効期限が切れています。<br>担当者にご連絡ください。</div>`;
+  document.querySelector('.inputarea').style.display = 'none';
+}
+
+function showError2(msg){
+  document.getElementById('operator-screen').style.display = 'none';
+  document.getElementById('client-screen').style.display = 'block';
+  document.getElementById('chat-intro').innerHTML = `<span class="intro-sym">✦</span><div class="intro-txt" style="color:#c97b5a;">${msg}</div>`;
+  document.querySelector('.inputarea').style.display = 'none';
+}
+
+function showApiKeyPrompt(decoded){
+  document.getElementById('operator-screen').style.display = 'none';
+  document.getElementById('client-screen').style.display = 'block';
+  document.getElementById('chat-intro').innerHTML = `
+    <span class="intro-sym">✦</span>
+    <div class="intro-txt">
+      セッションを開始するにはAPIキーが必要です。<br><br>
+      <input type="password" id="client-api-key" placeholder="sk-ant-api03-..." style="background:white;border:1px solid #e8e2d9;color:#1a1410;padding:10px;border-radius:2px;width:100%;max-width:380px;font-size:13px;margin:10px 0;" /><br>
+      <button onclick="submitApiKey()" style="background:#2d2420;border:none;color:#d4b483;padding:10px 24px;cursor:pointer;font-size:12px;letter-spacing:3px;margin-top:8px;">開始する</button>
+    </div>`;
+  document.querySelector('.inputarea').style.display = 'none';
+  window._pendingSession = decoded;
+}
+
+function submitApiKey(){
+  const key = document.getElementById('client-api-key')?.value.trim();
+  if(!key) return;
+  localStorage.setItem('echica_api_key', key);
+  window._pendingSession.apiKey = key;
+  sessionData = window._pendingSession;
+  document.getElementById('chat-intro').innerHTML = `<span class="intro-sym">✦</span><div class="intro-txt">あなたの星を、対話の中で読み解いていきます。<br>ここはあなたの内側と向き合う、静かな場所です。</div>`;
+  document.querySelector('.inputarea').style.display = 'block';
+  startConversation();
+}
+
+function buildSystemPrompt(){
+  const d = sessionData;
+  const lines = Object.entries(d.planets).map(([p,v])=>`${p}：${v.sign}${v.house?`（${v.house}）`:''}`).join('\n');
+  const ascmc = [d.asc?`ASC：${d.asc}`:'', d.mc?`MC：${d.mc}`:''].filter(Boolean).join('\n');
+  const note = d.practitionerNote ? `\n━━━━━━━━━━━━━━━━━━━━━━\n【認定者からの特記事項】\n━━━━━━━━━━━━━━━━━━━━━━\n${d.practitionerNote}` : '';
+  return `あなたは私の「内側のパターンを映す鏡」として対話してください。
+
+目的は、占いの答えを出すことではありません。
+私自身が自分のパターンに気づき、自分の意志で選択できるようになることがゴールです。
+
+━━━━━━━━━━━━━━━━━━━━━━
+【クライアントのホロスコープデータ】
+━━━━━━━━━━━━━━━━━━━━━━
+
+${lines}
+${ascmc}
+
+【主なアスペクト】
+${d.aspects||'（アスペクト情報なし）'}
+${note}
+
+━━━━━━━━━━━━━━━━━━━━━━
+【STEP 1a　まず全体像を読み解いてください】
+━━━━━━━━━━━━━━━━━━━━━━
+対話を始める前に、上記のホロスコープデータをもとに、以下の項目を読み解いてください。
+断定ではなく「〜という傾向があります」という表現で、日常の言葉で伝えてください。
+専門用語は使わず、本人がイメージしやすい言葉を選んでください。
+
+■ 性質　この人がもともと持っている気質・エネルギーの特徴
+■ 行動パターン　何かが起きたとき、どう動きやすいか
+■ 思考・才能　どんなふうに物事を考え、どんな力が自然に発揮されやすいか
+■ 課題と成長　繰り返しやすい葛藤や、乗り越えることで深まるテーマ
+■ 強み・弱みの活かし方　弱みを否定せず、どう自分のリソースとして扱えるか
+■ アスペクトからわかること　天体同士の関係性が、日常のどんな場面に出やすいか
+${(d.asc||d.mc)?'■ ASC・MCから読めること　外側に見せている顔（ASC）と、社会的な使命・方向性（MC）について':''}
+
+全体像を伝え終わったら、すぐにSTEP 1bに進んでください。
+
+━━━━━━━━━━━━━━━━━━━━━━
+【STEP 1b　対話の入口を作る】
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1aの内容をふまえ、以下の順序で1〜2点だけ取り上げ、対話の入口を作ってください。
+
+① 認定者の特記事項に記載された内容を起点にする
+　（これは本人がすでに感じていること・気になっていることです）
+　特記事項がない場合は、ホロスコープの中で最も強調されている天体・配置を起点にする
+
+② ①を裏付ける、または補完するホロスコープの天体配置に触れる
+
+③ そこから見えてくる課題・葛藤テーマへ自然につなげる
+
+【取り上げ方の注意】
+・「〜という見方もできます」という形で示す
+・断定しない・結論を出さない
+・1つのメッセージは短めに、詰め込まない
+・最後に「このあたり、思い当たることはありますか？」と問いかけて対話を始めてください
+
+━━━━━━━━━━━━━━━━━━━━━━
+【STEP 2　問いを重ねて、気づきを引き出す】
+━━━━━━━━━━━━━━━━━━━━━━
+・一度にたくさん伝えず、1つの問いを丁寧に扱う
+・私自身の言葉を引き出す問いを重ねる
+・すぐに解釈や結論を出さない
+・「〜という見方もできます」という形で示し、断定はしない
+・私が話してくれたことをそのまま受け取り、評価や判断を加えない
+・沈黙や「わからない」も大切な気づきとして扱う
+
+━━━━━━━━━━━━━━━━━━━━━━
+【STEP 3　自分の意志で締めくくる】
+━━━━━━━━━━━━━━━━━━━━━━
+対話が深まってきたと感じたら、以下の問いで締めくくってください。
+
+「このパターンに気づいた上で、次に同じ場面が来たとき、あなたはどう動きたいですか？」
+
+私が答えを出したとき、その選択をそっと受け取り、
+評価や補足を加えず、ただ肯定して締めくくってください。
+
+━━━━━━━━━━━━━━━━━━━━━━
+【必ず守るルール】
+━━━━━━━━━━━━━━━━━━━━━━
+・断定しない・先回りしない・アドバイスより問いを優先する
+・専門用語は使わず日常の言葉で
+・1つのメッセージは短めに・詰め込まない
+・私の言葉をそのまま受け取る・評価しない
+・私の意志を最優先にする
+・答えを渡すのではなく、気づきが生まれる場をつくる
+}
+async function startConversation(){
+  conversationHistory = [];
+  await callAI(true);
+}
+
+async function callAI(isFirst=false){
+  if(isLoading) return;
+  isLoading = true;
+  const typing = document.getElementById('typing');
+  typing.style.display = 'block';
+  typing.scrollIntoView({behavior:'smooth',block:'nearest'});
+  try {
+    const messages = isFirst ? [{role:'user',content:'セッションを始めてください。'}] : conversationHistory;
+    const res = await fetch('/.netlify/functions/claude',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json'
+      },      },
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:buildSystemPrompt(),messages})
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error?.message||'APIエラー');
+    const txt = data.content[0].text;
+    if(isFirst){
+      conversationHistory = [{role:'user',content:'セッションを始めてください。'},{role:'assistant',content:txt}];
+    } else {
+      conversationHistory.push({role:'assistant',content:txt});
+    }
+    typing.style.display = 'none';
+    addMsg('ai', txt);
+  } catch(e){
+    typing.style.display = 'none';
+    addMsg('ai', `エラーが発生しました。\n（${e.message}）`);
+  }
+  isLoading = false;
+}
+
+function addMsg(role, text){
+  const wrap = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `<div class="sender">${role==='ai'?'星読みAI':'あなた'}</div><div class="bubble">${text.replace(/\n/g,'<br>')}</div>`;
+  wrap.appendChild(div);
+  setTimeout(()=>div.scrollIntoView({behavior:'smooth',block:'end'}),100);
+}
+
+async function sendMessage(){
+  if(isLoading) return;
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = ''; input.style.height = 'auto';
+  addMsg('user', text);
+  conversationHistory.push({role:'user',content:text});
+  await callAI(false);
+}
+
+function handleKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+  setTimeout(()=>{
+    const ta=document.getElementById('user-input');
+    ta.style.height='auto';
+    ta.style.height=Math.min(ta.scrollHeight,120)+'px';
+  },0);
+}
+</script>
+</body>
+</html>
