@@ -427,7 +427,7 @@ async function callAI(isFirst=false){
     addMsg('ai', txt);
   } catch(e){
     typing.style.display = 'none';
-    addMsg('ai', `エラーが発生しました。\n（${e.message}）`);
+    addMsg('ai', `エラーが発生しました。\n (${e.message})`);
   }
   isLoading = false;
 }
