@@ -358,7 +358,7 @@ async function callAI(isFirst=false){
   typing.scrollIntoView({behavior:'smooth',block:'nearest'});
   try {
     const messages = isFirst ? [{role:'user',content:'セッションを始めてください。'}] : conversationHistory;
-    const res = await fetch('/.netlify/functions/claude',{
+    const res = await fetch('/api/claude',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:buildSystemPrompt(),messages})
