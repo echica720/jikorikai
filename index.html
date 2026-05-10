@@ -9,6 +9,7 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Hiragino Mincho ProN','Yu Mincho',serif;background:var(--deep);color:var(--paper);min-height:100vh;}
 #operator-screen{display:flex;flex-direction:column;align-items:center;padding:40px 16px;}
+#session-screen{display:none;min-height:100vh;background:var(--paper);flex-direction:column;align-items:center;justify-content:center;padding:40px 16px;}
 #client-screen{display:none;min-height:100vh;background:var(--paper);}
 .card{background:rgba(255,255,255,.04);border:1px solid rgba(184,150,90,.25);padding:40px;width:100%;max-width:680px;border-radius:2px;}
 .ttl{font-size:13px;letter-spacing:6px;color:var(--gold-light);text-align:center;margin-bottom:6px;}
@@ -38,9 +39,34 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .copyhint{font-size:10px;color:rgba(184,150,90,.5);margin-top:6px;}
 .expiry{font-size:10px;color:rgba(212,180,131,.4);margin-top:4px;}
 .errmsg{color:#c97b5a;font-size:11px;margin-top:8px;display:none;}
+
+/* セッション選択画面 */
+.sess-card{background:white;border:1px solid var(--mist);padding:40px;width:100%;max-width:560px;border-radius:2px;box-shadow:0 4px 24px rgba(0,0,0,.06);}
+.sess-header{text-align:center;margin-bottom:32px;}
+.sess-logo{font-size:11px;letter-spacing:5px;color:var(--gold);margin-bottom:10px;}
+.sess-name{font-size:17px;color:var(--ink);letter-spacing:1px;}
+.sess-list{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
+.sess-item{border:1px solid var(--mist);padding:14px 18px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:14px;border-radius:1px;}
+.sess-item:not(.done):hover{border-color:var(--gold);background:rgba(184,150,90,.03);}
+.sess-item.selected{border-color:var(--gold);background:rgba(184,150,90,.06);}
+.sess-item.done{opacity:0.45;cursor:default;}
+.sess-num{width:30px;height:30px;border-radius:50%;border:1px solid var(--gold-light);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--gold);flex-shrink:0;font-family:Georgia,serif;}
+.sess-item.done .sess-num{background:var(--gold);color:white;border-color:var(--gold);}
+.sess-info{flex:1;}
+.sess-theme{font-size:13px;color:var(--ink);margin-bottom:3px;}
+.sess-item.done .sess-theme{text-decoration:line-through;}
+.sess-desc{font-size:11px;color:var(--accent);}
+.sess-done-label{font-size:10px;color:var(--gold);letter-spacing:2px;}
+.start-btn{width:100%;padding:13px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:Georgia,serif;font-size:12px;letter-spacing:5px;cursor:pointer;transition:all .3s;border-radius:1px;}
+.start-btn:not(:disabled):hover{background:var(--gold);color:white;}
+.start-btn:disabled{opacity:0.35;cursor:default;}
+.all-done-msg{text-align:center;padding:20px;color:var(--gold);font-size:13px;letter-spacing:3px;border:1px solid rgba(184,150,90,.3);background:rgba(184,150,90,.04);}
+
+/* チャット画面 */
 .cheader{background:var(--deep);padding:20px;text-align:center;border-bottom:1px solid rgba(184,150,90,.2);position:sticky;top:0;z-index:10;}
 .ctitle{font-size:13px;letter-spacing:5px;color:var(--gold-light);}
-.chatbox{max-width:700px;margin:0 auto;padding:32px 20px 130px;}
+.csess{font-size:10px;letter-spacing:3px;color:rgba(184,150,90,.5);margin-top:4px;}
+.chatbox{max-width:700px;margin:0 auto;padding:32px 20px 160px;}
 .intro{text-align:center;padding:40px 0 32px;}
 .intro-sym{font-size:28px;color:var(--gold);display:block;margin-bottom:12px;}
 .intro-txt{font-size:13px;color:var(--accent);letter-spacing:2px;line-height:2.2;}
@@ -66,11 +92,15 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .sendbtn{width:44px;height:44px;background:var(--deep);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .sendbtn:hover{background:var(--accent);}
 .sendbtn svg{width:18px;height:18px;fill:var(--gold);}
+.completerow{max-width:700px;margin:10px auto 0;text-align:center;display:none;}
+.complete-btn{background:transparent;border:1px solid rgba(184,150,90,.45);color:rgba(122,92,58,.9);font-family:inherit;font-size:11px;letter-spacing:3px;padding:9px 24px;cursor:pointer;transition:all .3s;border-radius:1px;}
+.complete-btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(184,150,90,.05);}
 @keyframes fu{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 </style>
 </head>
 <body>
 
+<!-- ========== 認定者パネル ========== -->
 <div id="operator-screen">
 <div class="card">
   <div class="ttl">星読み × AI自己理解メソッド</div>
@@ -161,8 +191,28 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 </div>
 </div>
 
+<!-- ========== セッション選択画面 ========== -->
+<div id="session-screen">
+  <div class="sess-card">
+    <div class="sess-header">
+      <div class="sess-logo">星読み × AI自己理解メソッド</div>
+      <div class="sess-name" id="sess-client-name">セッションを選んでください</div>
+    </div>
+    <div class="sess-list" id="sess-list"></div>
+    <div id="start-area">
+      <button class="start-btn" id="start-btn" onclick="startSelectedSession()" disabled>
+        ✦ &nbsp; このセッションを始める &nbsp; ✦
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== チャット画面 ========== -->
 <div id="client-screen">
-  <div class="cheader"><div class="ctitle">星読み × AI自己理解メソッド</div></div>
+  <div class="cheader">
+    <div class="ctitle">星読み × AI自己理解メソッド</div>
+    <div class="csess" id="chat-sess-label"></div>
+  </div>
   <div class="chatbox">
     <div class="intro" id="chat-intro">
       <span class="intro-sym">✦</span>
@@ -178,6 +228,9 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
     </div>
+    <div class="completerow" id="complete-row">
+      <button class="complete-btn" onclick="completeSession()">✦ &nbsp; このセッションを完了する &nbsp; ✦</button>
+    </div>
   </div>
 </div>
 
@@ -185,19 +238,45 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 const PLANET_IDS = ['sun','moon','mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto','chiron','node'];
 const PLANET_LABELS = {'sun':'太陽','moon':'月','mercury':'水星','venus':'金星','mars':'火星','jupiter':'木星','saturn':'土星','uranus':'天王星','neptune':'海王星','pluto':'冥王星','chiron':'キロン','node':'ノード'};
 
+const SESSIONS = [
+  {num:1, theme:'自分の性質を知る',         desc:'太陽・月・ASC・MC'},
+  {num:2, theme:'才能・強みを掘る',          desc:'火星・金星・水星'},
+  {num:3, theme:'繰り返すパターンを知る',    desc:'キロン・土星・冥王星'},
+  {num:4, theme:'理想の未来を描く',          desc:'木星・ノースノード・天王星'},
+  {num:5, theme:'魂の使命を言語化する',      desc:'海王星・ノースノード・MC'},
+];
+
 let sessionData = null;
 let conversationHistory = [];
 let isLoading = false;
+let currentSession = null;
+let completedSessions = [];
 
+// ストレージキー
+function getStorageKey(){
+  return 'jk_' + String(sessionData.expires).slice(-10);
+}
+function loadCompletedSessions(){
+  try{ completedSessions = JSON.parse(localStorage.getItem(getStorageKey())) || []; }
+  catch(e){ completedSessions = []; }
+}
+function saveCompletedSession(num){
+  if(!completedSessions.includes(num)){
+    completedSessions.push(num);
+    try{ localStorage.setItem(getStorageKey(), JSON.stringify(completedSessions)); }catch(e){}
+  }
+}
+
+// 起動
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const sp = params.get('s');
-  if(sp) {
-    try {
+  if(sp){
+    try{
       const decoded = JSON.parse(decodeURIComponent(sp));
       if(decoded.expires && Date.now() > decoded.expires){ showExpired(); return; }
       sessionData = decoded;
-      showClientScreen();
+      showSessionScreen();
     } catch(e){
       showError2('データの読み込みに失敗しました。URLを確認してください。');
     }
@@ -206,7 +285,246 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-function generateSession() {
+// セッション選択画面
+function showSessionScreen(){
+  loadCompletedSessions();
+  document.getElementById('operator-screen').style.display = 'none';
+  document.getElementById('client-screen').style.display = 'none';
+  const ss = document.getElementById('session-screen');
+  ss.style.display = 'flex';
+  currentSession = null;
+
+  const name = sessionData.clientName;
+  document.getElementById('sess-client-name').textContent =
+    name ? `${name} さんのセッション` : 'セッションを選んでください';
+
+  renderSessionList();
+}
+
+function renderSessionList(){
+  const list = document.getElementById('sess-list');
+  list.innerHTML = '';
+
+  if(completedSessions.length === 5){
+    list.innerHTML = '<div class="all-done-msg">✦ &nbsp; 全5回のセッションが完了しました &nbsp; ✦<br><br>ここまで深く向き合ってくださり、ありがとうございました。</div>';
+    document.getElementById('start-area').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('start-area').style.display = 'block';
+  document.getElementById('start-btn').disabled = true;
+
+  SESSIONS.forEach(s => {
+    const done = completedSessions.includes(s.num);
+    const div = document.createElement('div');
+    div.className = `sess-item${done ? ' done' : ''}`;
+    div.innerHTML = `
+      <div class="sess-num">${done ? '✓' : s.num}</div>
+      <div class="sess-info">
+        <div class="sess-theme">${s.theme}</div>
+        <div class="sess-desc">${s.desc}</div>
+      </div>
+      ${done ? '<div class="sess-done-label">完了</div>' : ''}
+    `;
+    if(!done){
+      div.onclick = () => selectSession(s.num, div);
+    }
+    list.appendChild(div);
+  });
+}
+
+function selectSession(num, el){
+  document.querySelectorAll('.sess-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  currentSession = num;
+  document.getElementById('start-btn').disabled = false;
+}
+
+function startSelectedSession(){
+  if(!currentSession) return;
+  showClientScreen();
+}
+
+// チャット画面
+function showClientScreen(){
+  document.getElementById('session-screen').style.display = 'none';
+  document.getElementById('client-screen').style.display = 'block';
+  document.querySelector('.inputarea').style.display = 'block';
+  document.getElementById('complete-row').style.display = 'none';
+  document.getElementById('messages').innerHTML = '';
+  document.getElementById('user-input').value = '';
+
+  const s = SESSIONS.find(x => x.num === currentSession);
+  document.getElementById('chat-sess-label').textContent =
+    s ? `第${s.num}回 ｜ ${s.theme}` : '';
+
+  conversationHistory = [];
+  setTimeout(() => startConversation(), 600);
+}
+
+// システムプロンプト（セッション別）
+function buildSystemPrompt(sessionNum){
+  const d = sessionData;
+  const lines = Object.entries(d.planets).map(([p,v]) =>
+    `${p}：${v.sign}${v.house ? `（${v.house}）` : ''}`
+  ).join('\n');
+  const ascmc = [d.asc ? `ASC：${d.asc}` : '', d.mc ? `MC：${d.mc}` : ''].filter(Boolean).join('\n');
+  const note = d.practitionerNote
+    ? `\n━━━━━━━━━━━━━━━━━━━━━━\n【認定者からの特記事項】\n━━━━━━━━━━━━━━━━━━━━━━\n${d.practitionerNote}`
+    : '';
+
+  const horoData = `━━━━━━━━━━━━━━━━━━━━━━
+【クライアントのホロスコープデータ】
+━━━━━━━━━━━━━━━━━━━━━━
+${lines}
+${ascmc}
+
+【主なアスペクト】
+${d.aspects || '（アスペクト情報なし）'}
+${note}`;
+
+  const sessionInstructions = {
+
+    1: `あなたは星読みと自己理解の対話サポーターです。
+
+【このセッションの目的】
+クライアントが「自分はどんな人間か」を、星を鏡として自分自身で気づいていけるよう対話でサポートします。
+
+【重点天体】太陽・月・ASC（上昇星座）・1ハウス・MC
+※すべての天体はサイン（星座）とハウスの両方から読んでください。
+
+【進め方】
+まず上記の天体配置から「性質・気質・エネルギーの方向性」を丁寧に読み解き、日常の言葉で伝えてください。断定ではなく「〜という傾向があります」という表現を使います。専門用語は使わず、本人がイメージしやすい言葉を選んでください。
+
+読み解きを伝えたあとは、必ず問いかけに移ります。
+「これを聞いてどんな感じがしますか？」
+「思い当たることはありますか？」
+など、クライアント自身の言葉を引き出す問いを1つだけ投げかけてください。
+
+【絶対にしないこと】
+・答えを一方的に押しつけない
+・長文の解説を続けない（読み解き後は必ず問いかける）
+・「〜すべき」「〜が正解」という表現を使わない
+
+クライアントの返答には共感を示しながら、さらに深く自己理解が進む問いを重ねてください。
+このセッションは詳しく・丁寧に進めます。`,
+
+    2: `あなたは星読みと自己理解の対話サポーターです。
+
+【このセッションの目的】
+クライアントが「自分が生まれ持った才能・強み」に気づき、それを自分の言葉で認められるよう対話でサポートします。
+
+【重点天体】火星・金星・水星・2ハウス
+【重点アスペクト】トライン（120度）・セクスタイル（60度）
+※すべての天体はサイン（星座）とハウスの両方から読んでください。
+
+【進め方】
+上記の天体・アスペクトから「自然に発揮できる才能・強み・得意なこと」の特徴をさらっと伝えてください。詳しく説明しすぎず、キーワードで伝えるイメージです。
+
+伝えたらすぐに問いかけます。
+「この中で『たしかに』と思うものはありますか？」
+「昔からそうだったな、という経験はありますか？」
+
+クライアントが自分の強みを「言語化」できる瞬間を一緒につくることがゴールです。
+
+【絶対にしないこと】
+・「あなたの才能は〇〇です」と断言しない
+・強みの説明を長くしすぎない
+・クライアントが否定しても反論しない（「そう感じるんですね」と受け取る）
+
+このセッションは特徴を捉えてさらっと進めます。`,
+
+    3: `あなたは星読みと自己理解の対話サポーターです。
+
+【このセッションの目的】
+クライアントが「自分の中に繰り返しやすいパターン」を星を通して安全に知り、いざそのパターンが現れたとき「あ、これか」と気づいて、軌道修正したり、流れに乗ったり、無理に進まない選択ができるようになること。
+
+事前に防ぐためではなく、起きたときに「気づける自分」になるための内なる地図を一緒に作ります。
+
+【重点天体】キロン・土星・冥王星
+【重点アスペクト】スクエア（90度）・オポジション（180度）・コンジャンクション（0度）
+※すべての天体はサイン（星座）とハウスの両方から読んでください。
+
+【伝え方の原則】
+「課題」「弱点」「問題」という言葉は使わない。
+代わりに「繰り返しやすいテーマ」「人生でよく出てくるパターン」という言葉を使う。
+
+怖がらせるのではなく、「これを知っていると楽になる」という温かさで伝える。
+
+伝え方の例：
+「〜という流れになりやすい配置です。心当たりはありますか？」
+「このパターンに気づいたことはありましたか？」
+
+クライアントが「そうか、これが私のパターンか」と腑に落ちて、少し楽になる瞬間をつくることがゴールです。
+
+【絶対にしないこと】
+・ネガティブな言葉をそのまま使わない（「欠点」「弱点」「問題」）
+・クライアントを傷つける可能性のある表現を使わない
+・パターンを一方的に列挙しない
+
+クライアントが沈黙したり「わからない」と言っても、急かさず「そうですよね、ゆっくり感じてみてください」と受け取ってください。
+このセッションは言葉を選び、丁寧かつ温かく進めます。`,
+
+    4: `あなたは星読みと自己理解の対話サポーターです。
+
+【このセッションの目的】
+クライアントが「自分が向かっていける未来・可能性」を星から受け取り、前向きに自分の未来を言葉にできるよう対話でサポートします。
+
+【重点天体】木星・ノースノード・MC・天王星
+※すべての天体はサイン（星座）とハウスの両方から読んでください。
+
+【進め方】
+このセッションは明るく、前向きなトーンで進めます。
+上記の天体から「この人が伸びていける方向性・可能性・ワクワクするテーマ」を伝えてください。
+
+伝え方の例：
+「この配置は〜な方向に可能性が広がっています。どう感じますか？」
+「ワクワクする未来として、どんなイメージが浮かびますか？」
+
+クライアントが自分の可能性を「信じる」きっかけをつくることがゴールです。
+
+【絶対にしないこと】
+・「〜しなければなりません」という義務感のある表現を使わない
+・現実的なリスクや課題をこのセッションで持ち出さない
+・クライアントの夢を否定・縮小しない
+
+このセッションは前向きな言葉で、明るく進めます。`,
+
+    5: `あなたは星読みと自己理解の対話サポーターです。
+
+【このセッションの目的】
+1〜4回目の気づきを統合し、クライアントが「自分はどう生きたいか」を自分自身の言葉で語れるよう対話でサポートします。これが最後のセッションです。
+
+【重点天体】海王星・ノースノード・MC
+【統合】1〜4回目のセッションで生まれた気づきやテーマも踏まえる
+※すべての天体はサイン（星座）とハウスの両方から読んでください。
+
+【進め方】
+まず振り返りの問いから始めます。
+「ここまで4回、対話を重ねてきました。どんな気づきが印象に残っていますか？」
+
+クライアントの言葉を受け取りながら、海王星・ノースノード・MCから「魂の方向性・使命のテーマ」をそっと添えます。
+
+最後は必ずクライアント自身の言葉で締めくくってもらいます。
+「今日のセッションを通じて、あなたはどんな言葉で自分を表現したいですか？」
+「これからどう生きていきたいですか？あなたの言葉で聞かせてください。」
+
+クライアントが語った言葉をそのまま受け取り、評価も補足も加えず「それがあなたの答えですね」と肯定して終わります。
+
+【絶対にしないこと】
+・「あなたの使命は〇〇です」とAIが断言しない
+・クライアントの締めくくりに追加の解説を加えない
+・セッションをAIが終わらせない（クライアントの言葉で終わる）
+
+このセッションはクライアント自身の言葉で締めくくります。`
+
+  };
+
+  return horoData + '\n\n' + (sessionInstructions[sessionNum] || sessionInstructions[1]);
+}
+
+// 認定者パネル
+function generateSession(){
   document.getElementById('op-error').style.display = 'none';
   const planets = {};
   PLANET_IDS.forEach(id => {
@@ -243,20 +561,15 @@ function showOpError(msg){ const e=document.getElementById('op-error'); e.textCo
 
 function copyUrl(){
   const url = document.getElementById('result-url').textContent;
-  navigator.clipboard.writeText(url).then(()=>{
+  navigator.clipboard.writeText(url).then(() => {
     const el = document.getElementById('result-url');
     const orig = el.textContent;
     el.textContent = '✓ コピーしました';
-    setTimeout(()=>el.textContent=orig, 2000);
+    setTimeout(() => el.textContent = orig, 2000);
   });
 }
 
-function showClientScreen(){
-  document.getElementById('operator-screen').style.display = 'none';
-  document.getElementById('client-screen').style.display = 'block';
-  setTimeout(()=>startConversation(), 600);
-}
-
+// エラー表示
 function showExpired(){
   document.getElementById('operator-screen').style.display = 'none';
   document.getElementById('client-screen').style.display = 'block';
@@ -271,80 +584,7 @@ function showError2(msg){
   document.querySelector('.inputarea').style.display = 'none';
 }
 
-function buildSystemPrompt(){
-  const d = sessionData;
-  const lines = Object.entries(d.planets).map(([p,v])=>`${p}：${v.sign}${v.house?`（${v.house}）`:''}`).join('\n');
-  const ascmc = [d.asc?`ASC：${d.asc}`:'', d.mc?`MC：${d.mc}`:''].filter(Boolean).join('\n');
-  const note = d.practitionerNote ? `\n━━━━━━━━━━━━━━━━━━━━━━\n【認定者からの特記事項】\n━━━━━━━━━━━━━━━━━━━━━━\n${d.practitionerNote}` : '';
-  return `あなたは私の「内側のパターンを映す鏡」として対話してください。
-
-目的は、占いの答えを出すことではありません。
-私自身が自分のパターンに気づき、自分の意志で選択できるようになることがゴールです。
-
-━━━━━━━━━━━━━━━━━━━━━━
-【クライアントのホロスコープデータ】
-━━━━━━━━━━━━━━━━━━━━━━
-
-${lines}
-${ascmc}
-
-【主なアスペクト】
-${d.aspects||'（アスペクト情報なし）'}
-${note}
-
-━━━━━━━━━━━━━━━━━━━━━━
-【STEP 1a　まず全体像を読み解いてください】
-━━━━━━━━━━━━━━━━━━━━━━
-対話を始める前に、上記のホロスコープデータをもとに、以下の項目を読み解いてください。
-断定ではなく「〜という傾向があります」という表現で、日常の言葉で伝えてください。
-専門用語は使わず、本人がイメージしやすい言葉を選んでください。
-
-■ 性質　この人がもともと持っている気質・エネルギーの特徴
-■ 行動パターン　何かが起きたとき、どう動きやすいか
-■ 思考・才能　どんなふうに物事を考え、どんな力が自然に発揮されやすいか
-■ 課題と成長　繰り返しやすい葛藤や、乗り越えることで深まるテーマ
-■ 強み・弱みの活かし方　弱みを否定せず、どう自分のリソースとして扱えるか
-■ アスペクトからわかること　天体同士の関係性が、日常のどんな場面に出やすいか
-${(d.asc||d.mc)?'■ ASC・MCから読めること　外側に見せている顔（ASC）と、社会的な使命・方向性（MC）について':''}
-
-全体像を伝え終わったら、すぐにSTEP 1bに進んでください。
-
-━━━━━━━━━━━━━━━━━━━━━━
-【STEP 1b　対話の入口を作る】
-━━━━━━━━━━━━━━━━━━━━━━
-STEP 1aの内容をふまえ、以下の順序で1〜2点だけ取り上げ、対話の入口を作ってください。
-
-① 認定者の特記事項に記載された内容を起点にする
-② ①を裏付ける、または補完するホロスコープの天体配置に触れる
-③ そこから見えてくる課題・葛藤テーマへ自然につなげる
-
-最後に「このあたり、思い当たることはありますか？」と問いかけて対話を始めてください
-
-━━━━━━━━━━━━━━━━━━━━━━
-【STEP 2　問いを重ねて、気づきを引き出す】
-━━━━━━━━━━━━━━━━━━━━━━
-・一度にたくさん伝えず、1つの問いを丁寧に扱う
-・私自身の言葉を引き出す問いを重ねる
-・すぐに解釈や結論を出さない
-・沈黙や「わからない」も大切な気づきとして扱う
-
-━━━━━━━━━━━━━━━━━━━━━━
-【STEP 3　自分の意志で締めくくる】
-━━━━━━━━━━━━━━━━━━━━━━
-対話が深まってきたと感じたら、以下の問いで締めくくってください。
-「このパターンに気づいた上で、次に同じ場面が来たとき、あなたはどう動きたいですか？」
-私が答えを出したとき、評価や補足を加えず、ただ肯定して締めくくってください。
-
-━━━━━━━━━━━━━━━━━━━━━━
-【必ず守るルール】
-━━━━━━━━━━━━━━━━━━━━━━
-・断定しない・先回りしない・アドバイスより問いを優先する
-・専門用語は使わず日常の言葉で
-・1つのメッセージは短めに・詰め込まない
-・私の言葉をそのまま受け取る・評価しない
-・答えを渡すのではなく、気づきが生まれる場をつくる`;
-}
-
+// 会話
 async function startConversation(){
   conversationHistory = [];
   await callAI(true);
@@ -355,27 +595,39 @@ async function callAI(isFirst=false){
   isLoading = true;
   const typing = document.getElementById('typing');
   typing.style.display = 'block';
-  typing.scrollIntoView({behavior:'smooth',block:'nearest'});
-  try {
-    const messages = isFirst ? [{role:'user',content:'セッションを始めてください。'}] : conversationHistory;
+  window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+  try{
+    const messages = isFirst
+      ? [{role:'user', content:'セッションを始めてください。'}]
+      : conversationHistory;
     const res = await fetch('/api/claude',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:buildSystemPrompt(),messages})
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:2500,
+        system: buildSystemPrompt(currentSession),
+        messages
+      })
     });
     const data = await res.json();
-    if(!res.ok) throw new Error(data.error?.message||'APIエラー');
+    if(!res.ok) throw new Error(data.error?.message || 'APIエラー');
     const txt = data.content[0].text;
     if(isFirst){
-      conversationHistory = [{role:'user',content:'セッションを始めてください。'},{role:'assistant',content:txt}];
+      conversationHistory = [
+        {role:'user', content:'セッションを始めてください。'},
+        {role:'assistant', content:txt}
+      ];
     } else {
-      conversationHistory.push({role:'assistant',content:txt});
+      conversationHistory.push({role:'assistant', content:txt});
     }
     typing.style.display = 'none';
     addMsg('ai', txt);
+    // 最初のAI返答後に完了ボタンを表示
+    document.getElementById('complete-row').style.display = 'block';
   } catch(e){
     typing.style.display = 'none';
-    addMsg('ai', `エラーが発生しました。\n (${e.message})`);
+    addMsg('ai', `エラーが発生しました。\n(${e.message})`);
   }
   isLoading = false;
 }
@@ -386,7 +638,7 @@ function addMsg(role, text){
   div.className = `msg ${role}`;
   div.innerHTML = `<div class="sender">${role==='ai'?'星読みAI':'あなた'}</div><div class="bubble">${text.replace(/\n/g,'<br>')}</div>`;
   wrap.appendChild(div);
-  setTimeout(()=>div.scrollIntoView({behavior:'smooth',block:'end'}),100);
+  setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
 }
 
 async function sendMessage(){
@@ -396,17 +648,45 @@ async function sendMessage(){
   if(!text) return;
   input.value = ''; input.style.height = 'auto';
   addMsg('user', text);
-  conversationHistory.push({role:'user',content:text});
+  conversationHistory.push({role:'user', content:text});
   await callAI(false);
 }
 
 function handleKey(e){
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
-  setTimeout(()=>{
-    const ta=document.getElementById('user-input');
-    ta.style.height='auto';
-    ta.style.height=Math.min(ta.scrollHeight,120)+'px';
-  },0);
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+  setTimeout(() => {
+    const ta = document.getElementById('user-input');
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  }, 0);
+}
+
+// セッション完了
+function completeSession(){
+  saveCompletedSession(currentSession);
+  document.getElementById('complete-row').style.display = 'none';
+  document.querySelector('.inputarea').style.display = 'none';
+
+  const s = SESSIONS.find(x => x.num === currentSession);
+  const isLast = currentSession === 5;
+
+  const wrap = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  const completionText = isLast
+    ? `✦ &nbsp; 全5回のセッションが完了しました。<br><br>ここまで深く向き合ってくださり、ありがとうございました。<br>あなたが今日語ってくださった言葉を、大切に持ち帰ってください。`
+    : `✦ &nbsp; 第${currentSession}回「${s ? s.theme : ''}」が完了しました。<br><br>今日の気づきを大切に、ゆっくり感じてみてください。<br>次のセッションへ進む準備ができたら、もう一度リンクを開いてください。`;
+
+  div.innerHTML = `<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left-color:#b8965a;">${completionText}</div>`;
+  wrap.appendChild(div);
+
+  // セッション一覧に戻るボタン
+  const backDiv = document.createElement('div');
+  backDiv.style.cssText = 'text-align:center;padding:24px 0;';
+  backDiv.innerHTML = `<button onclick="showSessionScreen()" style="background:transparent;border:1px solid rgba(184,150,90,.4);color:rgba(122,92,58,.9);font-family:inherit;font-size:11px;letter-spacing:3px;padding:10px 24px;cursor:pointer;border-radius:1px;">← セッション一覧へ戻る</button>`;
+  wrap.appendChild(backDiv);
+
+  setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
 }
 </script>
 </body>
