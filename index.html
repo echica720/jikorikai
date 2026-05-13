@@ -95,6 +95,12 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .completerow{max-width:700px;margin:10px auto 0;text-align:center;display:none;}
 .complete-btn{background:transparent;border:1px solid rgba(184,150,90,.45);color:rgba(122,92,58,.9);font-family:inherit;font-size:11px;letter-spacing:3px;padding:9px 24px;cursor:pointer;transition:all .3s;border-radius:1px;}
 .complete-btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(184,150,90,.05);}
+
+/* 要約ボックス */
+.summary-box{background:#fffdf9;border:1px solid var(--mist);border-left:3px solid var(--gold);padding:20px 24px;border-radius:2px;box-shadow:2px 4px 16px rgba(0,0,0,.04);}
+.summary-label{font-size:10px;letter-spacing:4px;color:var(--gold);margin-bottom:14px;}
+.summary-content{font-size:14px;color:var(--ink);line-height:2.2;}
+
 @keyframes fu{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 </style>
 </head>
@@ -252,9 +258,8 @@ let isLoading = false;
 let currentSession = null;
 let completedSessions = [];
 
-// ストレージキー
 function getStorageKey(){
-  return 'jk_' + String(sessionData.expires).slice(-10);
+  return 'jk_' + (sessionData.id || String(sessionData.expires).slice(-10));
 }
 function loadCompletedSessions(){
   try{ completedSessions = JSON.parse(localStorage.getItem(getStorageKey())) || []; }
@@ -267,7 +272,6 @@ function saveCompletedSession(num){
   }
 }
 
-// 起動
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const sp = params.get('s');
@@ -285,7 +289,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// セッション選択画面
 function showSessionScreen(){
   loadCompletedSessions();
   document.getElementById('operator-screen').style.display = 'none';
@@ -345,7 +348,6 @@ function startSelectedSession(){
   showClientScreen();
 }
 
-// チャット画面
 function showClientScreen(){
   document.getElementById('session-screen').style.display = 'none';
   document.getElementById('client-screen').style.display = 'block';
@@ -362,7 +364,6 @@ function showClientScreen(){
   setTimeout(() => startConversation(), 600);
 }
 
-// システムプロンプト（セッション別）
 function buildSystemPrompt(sessionNum){
   const d = sessionData;
   const lines = Object.entries(d.planets).map(([p,v]) =>
@@ -384,7 +385,6 @@ ${d.aspects || '（アスペクト情報なし）'}
 ${note}`;
 
   const sessionInstructions = {
-
     1: `あなたは星読みと自己理解の対話サポーターです。
 
 【このセッションの目的】
@@ -517,13 +517,11 @@ ${note}`;
 ・セッションをAIが終わらせない（クライアントの言葉で終わる）
 
 このセッションはクライアント自身の言葉で締めくくります。`
-
   };
 
   return horoData + '\n\n' + (sessionInstructions[sessionNum] || sessionInstructions[1]);
 }
 
-// 認定者パネル
 function generateSession(){
   document.getElementById('op-error').style.display = 'none';
   const planets = {};
@@ -535,6 +533,7 @@ function generateSession(){
   if(Object.keys(planets).length < 3){ showOpError('天体情報を3つ以上選択してください'); return; }
 
   const obj = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
     planets,
     asc: document.getElementById('asc-sign').value,
     mc: document.getElementById('mc-sign').value,
@@ -569,7 +568,6 @@ function copyUrl(){
   });
 }
 
-// エラー表示
 function showExpired(){
   document.getElementById('operator-screen').style.display = 'none';
   document.getElementById('client-screen').style.display = 'block';
@@ -584,7 +582,6 @@ function showError2(msg){
   document.querySelector('.inputarea').style.display = 'none';
 }
 
-// 会話
 async function startConversation(){
   conversationHistory = [];
   await callAI(true);
@@ -623,7 +620,6 @@ async function callAI(isFirst=false){
     }
     typing.style.display = 'none';
     addMsg('ai', txt);
-    // 最初のAI返答後に完了ボタンを表示
     document.getElementById('complete-row').style.display = 'block';
   } catch(e){
     typing.style.display = 'none';
@@ -661,16 +657,66 @@ function handleKey(e){
   }, 0);
 }
 
-// セッション完了
-function completeSession(){
+// ========== ② セッション完了＋要約生成 ==========
+async function completeSession(){
   saveCompletedSession(currentSession);
   document.getElementById('complete-row').style.display = 'none';
   document.querySelector('.inputarea').style.display = 'none';
 
   const s = SESSIONS.find(x => x.num === currentSession);
   const isLast = currentSession === 5;
-
   const wrap = document.getElementById('messages');
+
+  // --- 要約ローディング表示 ---
+  const summaryDiv = document.createElement('div');
+  summaryDiv.className = 'msg ai';
+  summaryDiv.style.opacity = '1';
+  summaryDiv.innerHTML = `
+    <div class="sender">今日の気づき ✦</div>
+    <div class="summary-box">
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>`;
+  wrap.appendChild(summaryDiv);
+  setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
+
+  // --- 要約API呼び出し ---
+  try{
+    const summarySystem = `あなたはセッションの振り返りサポーターです。
+会話の流れを読んで、クライアントがこのセッションで気づいたこと・感じたこと・発見したことを3〜5点、箇条書きでまとめてください。
+
+ルール：
+・AIの解説や分析ではなく、クライアント自身が言葉にした気づきを中心にまとめる
+・「〜と気づいた」「〜を感じた」「〜だとわかった」という、クライアント目線の表現で書く
+・専門用語（星座名・ハウス名など）は使わない
+・前置きや後置きは不要。箇条書きのみ返す
+・各項目は「・」で始める`;
+
+    const res = await fetch('/api/claude',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:800,
+        system: summarySystem,
+        messages: [
+          ...conversationHistory,
+          {role:'user', content:'このセッションで私が気づいたこと・感じたことを箇条書きでまとめてください。'}
+        ]
+      })
+    });
+    const data = await res.json();
+    const summaryText = data.content[0].text;
+    summaryDiv.innerHTML = `
+      <div class="sender">今日の気づき ✦</div>
+      <div class="summary-box">
+        <div class="summary-label">✦ &nbsp; THIS SESSION</div>
+        <div class="summary-content">${summaryText.replace(/\n/g,'<br>')}</div>
+      </div>`;
+  } catch(e){
+    summaryDiv.remove();
+  }
+
+  // --- 完了メッセージ ---
   const div = document.createElement('div');
   div.className = 'msg ai';
   const completionText = isLast
@@ -680,7 +726,7 @@ function completeSession(){
   div.innerHTML = `<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left-color:#b8965a;">${completionText}</div>`;
   wrap.appendChild(div);
 
-  // セッション一覧に戻るボタン
+  // --- 一覧へ戻るボタン ---
   const backDiv = document.createElement('div');
   backDiv.style.cssText = 'text-align:center;padding:24px 0;';
   backDiv.innerHTML = `<button onclick="showSessionScreen()" style="background:transparent;border:1px solid rgba(184,150,90,.4);color:rgba(122,92,58,.9);font-family:inherit;font-size:11px;letter-spacing:3px;padding:10px 24px;cursor:pointer;border-radius:1px;">← セッション一覧へ戻る</button>`;
