@@ -61,6 +61,8 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .start-btn:not(:disabled):hover{background:var(--gold);color:white;}
 .start-btn:disabled{opacity:0.35;cursor:default;}
 .all-done-msg{text-align:center;padding:20px;color:var(--gold);font-size:13px;letter-spacing:3px;border:1px solid rgba(184,150,90,.3);background:rgba(184,150,90,.04);}
+.expiry-badge{display:inline-block;font-size:11px;letter-spacing:2px;padding:5px 14px;border-radius:20px;margin-top:8px;background:rgba(184,150,90,.08);border:1px solid rgba(184,150,90,.3);color:var(--accent);}
+.expiry-badge.urgent{background:rgba(201,123,90,.08);border-color:rgba(201,123,90,.4);color:#c97b5a;}
 
 /* チャット画面 */
 .cheader{background:var(--deep);padding:20px;text-align:center;border-bottom:1px solid rgba(184,150,90,.2);position:sticky;top:0;z-index:10;}
@@ -185,6 +187,16 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
     <textarea id="practitioner-note" style="min-height:100px;" placeholder="例：&#10;・月×火星のオポジションが強く出ている。感情と行動の衝突パターンを中心に。&#10;・最近大きな選択を控えているとのこと。意志と恐れの関係を丁寧に。"></textarea>
   </div>
 
+  <div class="sec">有効期限</div>
+  <div class="row">
+    <span class="lbl" style="width:80px;">期限設定</span>
+    <select id="expiry-days">
+      <option value="7">7日間（1週間）</option>
+      <option value="14" selected>14日間（2週間）</option>
+      <option value="30">30日間（1ヶ月）</option>
+    </select>
+  </div>
+
   <button class="btn" onclick="generateSession()"><span>✦ &nbsp; セッションを作成する &nbsp; ✦</span></button>
   <div class="errmsg" id="op-error"></div>
 
@@ -203,6 +215,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
     <div class="sess-header">
       <div class="sess-logo">星読み × AI自己理解メソッド</div>
       <div class="sess-name" id="sess-client-name">セッションを選んでください</div>
+      <div id="expiry-badge" class="expiry-badge" style="display:none;"></div>
     </div>
     <div class="sess-list" id="sess-list"></div>
     <div id="start-area">
@@ -300,6 +313,18 @@ function showSessionScreen(){
   const name = sessionData.clientName;
   document.getElementById('sess-client-name').textContent =
     name ? `${name} さんのセッション` : 'セッションを選んでください';
+
+  // 残り日数バッジ
+  const remaining = Math.ceil((sessionData.expires - Date.now()) / (1000*60*60*24));
+  const badge = document.getElementById('expiry-badge');
+  if(remaining <= 3){
+    badge.textContent = `⚠️ 残り${remaining}日`;
+    badge.className = 'expiry-badge urgent';
+  } else {
+    badge.textContent = `残り${remaining}日`;
+    badge.className = 'expiry-badge';
+  }
+  badge.style.display = 'inline-block';
 
   renderSessionList();
 }
@@ -540,7 +565,7 @@ function generateSession(){
     aspects: document.getElementById('aspects').value.trim(),
     practitionerNote: document.getElementById('practitioner-note').value.trim(),
     clientName: document.getElementById('client-name').value.trim(),
-    expires: Date.now() + (30*24*60*60*1000),
+    expires: Date.now() + (parseInt(document.getElementById('expiry-days').value) * 24*60*60*1000),
   };
 
   const json = JSON.stringify(obj);
@@ -549,8 +574,9 @@ function generateSession(){
   const url = `${base}?s=${encoded}`;
 
   document.getElementById('result-url').textContent = url;
+  const days = parseInt(document.getElementById('expiry-days').value);
   const d = new Date(obj.expires).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
-  document.getElementById('expiry-note').textContent = `有効期限：${d}まで（30日間）`;
+  document.getElementById('expiry-note').textContent = `有効期限：${d}まで（${days}日間）`;
   const rb = document.getElementById('result-box');
   rb.style.display = 'block';
   rb.scrollIntoView({behavior:'smooth',block:'nearest'});
