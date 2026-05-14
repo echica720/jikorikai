@@ -773,9 +773,14 @@ async function callAI(isFirst=false){
   typing.style.display = 'block';
   window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
   try{
+    // 会話履歴が長くなりすぎないよう直近20件に制限（最初の2件は保持）
+    const trimHistory = (history, maxLen = 20) => {
+      if (history.length <= maxLen) return history;
+      return [...history.slice(0, 2), ...history.slice(-(maxLen - 2))];
+    };
     const messages = isFirst
       ? [{role:'user', content:'セッションを始めてください。'}]
-      : conversationHistory;
+      : trimHistory(conversationHistory);
     const res = await fetch('/api/claude',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -788,6 +793,7 @@ async function callAI(isFirst=false){
     });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error?.message || 'APIエラー');
+    if(!data.content || !data.content[0]) throw new Error('AIからの応答を取得できませんでした。しばらく待ってから再度お試しください。');
     const txt = data.content[0].text;
     if(isFirst){
       conversationHistory = [
@@ -884,6 +890,7 @@ async function completeSession(){
       })
     });
     const data = await res.json();
+    if(!data.content || !data.content[0]) throw new Error('まとめの生成に失敗しました。再度お試しください。');
     savedSummaryText = data.content[0].text;
 
     // 要約をlocalStorageに保存（次回セッションへの引き継ぎ用）
@@ -947,6 +954,7 @@ async function completeSession(){
         })
       });
       const finalData = await finalRes.json();
+      if(!finalData.content || !finalData.content[0]) throw new Error('総まとめの生成に失敗しました。再度お試しください。');
       const finalText = finalData.content[0].text;
 
       finalDiv.innerHTML = `
