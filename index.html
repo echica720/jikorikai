@@ -39,6 +39,13 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .copyhint{font-size:10px;color:rgba(184,150,90,.5);margin-top:6px;}
 .expiry{font-size:10px;color:rgba(212,180,131,.4);margin-top:4px;}
 .errmsg{color:#c97b5a;font-size:11px;margin-top:8px;display:none;}
+.plan-option{background:rgba(255,255,255,.04);border:1px solid rgba(184,150,90,.2);padding:14px 18px;cursor:pointer;border-radius:2px;transition:all .2s;}
+.plan-option:hover{border-color:var(--gold);}
+.plan-option.selected{border-color:var(--gold);background:rgba(184,150,90,.1);}
+/* お試しプランのロック表示 */
+.sess-item.locked{opacity:0.4;cursor:default;}
+.sess-item.locked:hover{border-color:var(--mist);background:transparent;}
+.sess-locked-label{font-size:10px;color:#c97b5a;letter-spacing:1px;}
 
 /* セッション選択画面 */
 .sess-card{background:white;border:1px solid var(--mist);padding:40px;width:100%;max-width:560px;border-radius:2px;box-shadow:0 4px 24px rgba(0,0,0,.06);}
@@ -105,6 +112,8 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .summary-box{background:#fffdf9;border:1px solid var(--mist);border-left:3px solid var(--gold);padding:20px 24px;border-radius:2px;box-shadow:2px 4px 16px rgba(0,0,0,.04);}
 .summary-label{font-size:10px;letter-spacing:4px;color:var(--gold);margin-bottom:14px;}
 .summary-content{font-size:14px;color:var(--ink);line-height:2.2;}
+.download-btn{margin-top:16px;background:transparent;border:1px solid rgba(184,150,90,.4);color:rgba(122,92,58,.9);font-family:inherit;font-size:11px;letter-spacing:3px;padding:8px 20px;cursor:pointer;border-radius:1px;transition:all .3s;}
+.download-btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(184,150,90,.05);}
 
 /* 総まとめボックス */
 .final-summary-box{background:#fffdf9;border:1px solid rgba(184,150,90,.4);border-left:3px solid var(--gold);padding:28px 28px;border-radius:2px;box-shadow:4px 8px 32px rgba(0,0,0,.07);}
@@ -212,14 +221,26 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
   <div class="sec" style="margin-top:24px;">主なアスペクト</div>
   <textarea id="aspects" placeholder="例：&#10;・太陽（牡羊座）× 土星（蠍座）― 150度&#10;・月（蟹座）× 火星（山羊座）― 180度"></textarea>
 
-  <div class="sec">有効期限</div>
-  <div class="row">
-    <span class="lbl" style="width:80px;">期限設定</span>
-    <select id="expiry-days">
-      <option value="7">7日間（1週間）</option>
-      <option value="14" selected>14日間（2週間）</option>
-      <option value="30">30日間（1ヶ月）</option>
-    </select>
+  <div class="sec">プラン選択</div>
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <div class="plan-option selected" id="plan-trial" onclick="selectPlan('trial')">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:13px;color:var(--gold-light);letter-spacing:2px;">お試しプラン</div>
+          <div style="font-size:11px;color:rgba(212,180,131,.6);margin-top:4px;">第1回のみ・7日間</div>
+        </div>
+        <div style="font-size:16px;color:var(--gold-light);font-family:Georgia,serif;">¥3,000</div>
+      </div>
+    </div>
+    <div class="plan-option" id="plan-full" onclick="selectPlan('full')">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:13px;color:var(--gold-light);letter-spacing:2px;">フルプラン</div>
+          <div style="font-size:11px;color:rgba(212,180,131,.6);margin-top:4px;">全5回・30日間</div>
+        </div>
+        <div style="font-size:16px;color:var(--gold-light);font-family:Georgia,serif;">¥8,000</div>
+      </div>
+    </div>
   </div>
 
   <button class="btn" id="generate-btn" onclick="generateSession()"><span>✦ &nbsp; セッションを作成する &nbsp; ✦</span></button>
@@ -337,14 +358,13 @@ const SESSIONS = [
 
 let sessionData = null;
 let sessionId = null;
-// サーバーサイドで管理するプログレス
+let selectedPlan = 'trial';
 let progress = { completedSessions: [], activeSessions: {}, summaries: {} };
 let conversationHistory = [];
 let isLoading = false;
 let currentSession = null;
 let userContext = { theme: '', detail: '' };
 
-// ========== KVへの状態保存 ==========
 async function saveProgress() {
   if (!sessionId) return;
   try {
@@ -353,19 +373,20 @@ async function saveProgress() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId, progress })
     });
-  } catch(e) {
-    console.error('saveProgress failed:', e);
-  }
+  } catch(e) { console.error('saveProgress failed:', e); }
 }
 
-// ========== 会話履歴トリム（上限20件） ==========
+function selectPlan(plan){
+  selectedPlan = plan;
+  document.getElementById('plan-trial').classList.toggle('selected', plan === 'trial');
+  document.getElementById('plan-full').classList.toggle('selected', plan === 'full');
+}
+
 function trimHistory(history) {
   if (history.length <= 20) return history;
-  // 先頭2件（初回交換）＋最新18件を保持
   return [...history.slice(0, 2), ...history.slice(-18)];
 }
 
-// ========== 前回までの気づきをプロンプトに注入 ==========
 function getPreviousSummaries(upToSession){
   const parts = [];
   for(let i = 1; i < upToSession; i++){
@@ -380,19 +401,16 @@ function getPreviousSummaries(upToSession){
     '\n\n※上記は過去セッションでクライアント自身が言葉にした気づきです。今回のセッションでも必要に応じて自然に触れてください。同じ内容を繰り返し説明させる必要はありません。';
 }
 
-// ========== 初期化 ==========
 window.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   const sp = params.get('s');
   if(sp){
     sessionId = sp;
     try{
-      // セッションデータとプログレスを並行取得
       const [sessRes, stateRes] = await Promise.all([
         fetch(`/api/get-session?id=${sp}`),
         fetch(`/api/get-state?id=${sp}`)
       ]);
-
       if(!sessRes.ok){
         const err = await sessRes.json();
         if(err.error === 'expired'){ showExpired(); return; }
@@ -401,8 +419,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       const decoded = await sessRes.json();
       if(decoded.expires && Date.now() > decoded.expires){ showExpired(); return; }
       sessionData = decoded;
-
-      // プログレス読み込み
       if(stateRes.ok){
         const stateData = await stateRes.json();
         progress = {
@@ -411,7 +427,6 @@ window.addEventListener('DOMContentLoaded', async () => {
           summaries: stateData.summaries || {}
         };
       }
-
       showSessionScreen();
     } catch(e){
       showError2('データの読み込みに失敗しました。URLを確認してください。');
@@ -428,11 +443,9 @@ function showSessionScreen(){
   const ss = document.getElementById('session-screen');
   ss.style.display = 'flex';
   currentSession = null;
-
   const name = sessionData.clientName;
   document.getElementById('sess-client-name').textContent =
     name ? `${name} さんのセッション` : 'セッションを選んでください';
-
   const remaining = Math.ceil((sessionData.expires - Date.now()) / (1000*60*60*24));
   const badge = document.getElementById('expiry-badge');
   if(remaining <= 3){
@@ -443,38 +456,37 @@ function showSessionScreen(){
     badge.className = 'expiry-badge';
   }
   badge.style.display = 'inline-block';
-
   renderSessionList();
 }
 
 function renderSessionList(){
   const list = document.getElementById('sess-list');
   list.innerHTML = '';
-
   if(progress.completedSessions.length === 5){
     list.innerHTML = '<div class="all-done-msg">✦ &nbsp; 全5回のセッションが完了しました &nbsp; ✦<br><br>ここまで深く向き合ってくださり、ありがとうございました。</div>';
     document.getElementById('start-area').style.display = 'none';
     return;
   }
-
   document.getElementById('start-area').style.display = 'block';
   document.getElementById('start-btn').disabled = true;
   document.getElementById('start-btn').textContent = '✦ \u3000このセッションを始める\u3000✦';
-
   SESSIONS.forEach(s => {
     const done = progress.completedSessions.includes(s.num);
     const inProgress = !done && !!progress.activeSessions[s.num];
+    const isTrial = sessionData.plan === 'trial';
+    const locked = isTrial && s.num > 1;
     const div = document.createElement('div');
-    div.className = `sess-item${done ? ' done' : ''}${inProgress ? ' in-progress' : ''}`;
+    div.className = `sess-item${done ? ' done' : ''}${inProgress ? ' in-progress' : ''}${locked ? ' locked' : ''}`;
     div.innerHTML = `
       <div class="sess-num">${done ? '✓' : s.num}</div>
       <div class="sess-info">
         <div class="sess-theme">${s.theme}</div>
         ${inProgress ? '<div class="sess-resume-label">▶ 途中から再開</div>' : ''}
+        ${locked ? '<div class="sess-locked-label">🔒 フルプランで利用可能</div>' : ''}
       </div>
       ${done ? '<div class="sess-done-label">完了</div>' : ''}
     `;
-    if(!done){ div.onclick = () => selectSession(s.num, div); }
+    if(!done && !locked){ div.onclick = () => selectSession(s.num, div); }
     list.appendChild(div);
   });
 }
@@ -483,7 +495,6 @@ function selectSession(num, el){
   document.querySelectorAll('.sess-item').forEach(i => i.classList.remove('selected'));
   el.classList.add('selected');
   currentSession = num;
-
   const inProgress = !!progress.activeSessions[num];
   const startBtn = document.getElementById('start-btn');
   startBtn.disabled = false;
@@ -496,7 +507,6 @@ function startSelectedSession(){
   if(!currentSession) return;
   const active = progress.activeSessions[currentSession];
   if(active){
-    // 再開：保存済みのテーマと会話履歴を復元
     userContext = { theme: active.theme || '', detail: active.detail || '' };
     showClientScreen(active.history || []);
   } else {
@@ -512,15 +522,11 @@ function showClientScreen(existingHistory = []){
   document.getElementById('complete-row').style.display = 'none';
   document.getElementById('messages').innerHTML = '';
   document.getElementById('user-input').value = '';
-
   const s = SESSIONS.find(x => x.num === currentSession);
   document.getElementById('chat-sess-label').textContent =
     s ? `第${s.num}回 ｜ ${s.theme}` : '';
-
   conversationHistory = existingHistory;
-
   if(existingHistory.length > 0){
-    // 再開モード：過去メッセージを表示
     document.getElementById('chat-intro').style.display = 'none';
     existingHistory.forEach(msg => {
       addMsg(msg.role === 'user' ? 'user' : 'ai', msg.content);
@@ -528,24 +534,20 @@ function showClientScreen(existingHistory = []){
     document.getElementById('complete-row').style.display = 'block';
     setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
   } else {
-    // 新規セッション
     document.getElementById('chat-intro').style.display = 'block';
     setTimeout(() => startConversation(), 600);
   }
 }
 
-// ========== システムプロンプト構築 ==========
 function buildSystemPrompt(sessionNum, userContext={}){
   const d = sessionData;
   const lines = Object.entries(d.planets).map(([p,v]) =>
     `${p}：${v.sign}${v.house ? `（${v.house}）` : ''}`
   ).join('\n');
   const ascmc = [d.asc ? `ASC：${d.asc}` : '', d.mc ? `MC：${d.mc}` : ''].filter(Boolean).join('\n');
-
   const userContextSection = (userContext && (userContext.theme || userContext.detail))
     ? `\n━━━━━━━━━━━━━━━━━━━━━━\n【クライアントが今回掘り下げたいこと】\n━━━━━━━━━━━━━━━━━━━━━━\nテーマ：${userContext.theme || '未選択'}\n詳細：${userContext.detail || '（記入なし）'}\n\n※このテーマを念頭に置きながら対話を進めてください。ただし直接的に「○○について話しましょう」と切り出さず、自然な流れで触れてください。`
     : '';
-
   const horoData = `━━━━━━━━━━━━━━━━━━━━━━
 【クライアントのホロスコープデータ】
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -700,16 +702,13 @@ ${userContextSection}`;
   return horoData + previousSummaries + '\n\n' + (sessionInstructions[sessionNum] || sessionInstructions[1]);
 }
 
-// ========== アンケート画面 ==========
 function showQuestionnaireScreen(){
   document.getElementById('session-screen').style.display = 'none';
   document.getElementById('questionnaire-screen').style.display = 'flex';
   userContext = { theme: '', detail: '' };
-
   const s = SESSIONS.find(x => x.num === currentSession);
   document.getElementById('q-sess-title').textContent =
     s ? `第${s.num}回「${s.theme}」を始める前に` : 'セッションを始める前に';
-
   document.querySelectorAll('.q-option').forEach(o => o.classList.remove('selected'));
   document.getElementById('q-detail').value = '';
   document.getElementById('q-start-btn').disabled = true;
@@ -724,20 +723,16 @@ function selectTheme(el, theme){
 
 async function startWithQuestionnaire(){
   userContext.detail = document.getElementById('q-detail').value.trim();
-
-  // カテゴリーをKVにロック保存（以降は再選択不可）
   progress.activeSessions[currentSession] = {
     theme: userContext.theme,
     detail: userContext.detail,
     history: []
   };
-  saveProgress(); // 非同期・待たない
-
+  saveProgress();
   document.getElementById('questionnaire-screen').style.display = 'none';
   showClientScreen();
 }
 
-// ========== セッション生成（認定者パネル） ==========
 async function generateSession(){
   document.getElementById('op-error').style.display = 'none';
   const planets = {};
@@ -747,20 +742,20 @@ async function generateSession(){
     if(sign) planets[PLANET_LABELS[id]] = {sign, house};
   });
   if(Object.keys(planets).length < 3){ showOpError('天体情報を3つ以上選択してください'); return; }
-
+  const isTrial = selectedPlan === 'trial';
+  const expiryDays = isTrial ? 7 : 30;
   const obj = {
     planets,
     asc: document.getElementById('asc-sign').value,
     mc: document.getElementById('mc-sign').value,
     aspects: document.getElementById('aspects').value.trim(),
     clientName: document.getElementById('client-name').value.trim(),
-    expires: Date.now() + (parseInt(document.getElementById('expiry-days').value) * 24*60*60*1000),
+    plan: selectedPlan,
+    expires: Date.now() + (expiryDays * 24*60*60*1000),
   };
-
   const btn = document.getElementById('generate-btn');
   btn.disabled = true;
   btn.querySelector('span').textContent = '作成中...';
-
   try{
     const res = await fetch('/api/create-session', {
       method: 'POST',
@@ -769,21 +764,16 @@ async function generateSession(){
     });
     if(!res.ok) throw new Error('セッションの作成に失敗しました');
     const { id } = await res.json();
-
     const base = window.location.href.split('?')[0];
     const url = `${base}?s=${id}`;
-
     document.getElementById('result-url').textContent = url;
-    const days = parseInt(document.getElementById('expiry-days').value);
+    const planLabel = isTrial ? 'お試しプラン（第1回のみ・7日間）' : 'フルプラン（全5回・30日間）';
     const d = new Date(obj.expires).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
-    document.getElementById('expiry-note').textContent = `有効期限：${d}まで（${days}日間）`;
+    document.getElementById('expiry-note').textContent = `${planLabel} ／ 有効期限：${d}まで`;
     const rb = document.getElementById('result-box');
     rb.style.display = 'block';
     rb.scrollIntoView({behavior:'smooth',block:'nearest'});
-  } catch(e){
-    showOpError(e.message);
-  }
-
+  } catch(e){ showOpError(e.message); }
   btn.disabled = false;
   btn.querySelector('span').textContent = '✦ 　セッションを作成する 　✦';
 }
@@ -850,14 +840,11 @@ async function callAI(isFirst=false){
     } else {
       conversationHistory.push({role:'assistant', content:txt});
     }
-
-    // 履歴トリム → KVに保存
     conversationHistory = trimHistory(conversationHistory);
     if(progress.activeSessions[currentSession]){
       progress.activeSessions[currentSession].history = conversationHistory;
-      saveProgress(); // 非同期
+      saveProgress();
     }
-
     typing.style.display = 'none';
     addMsg('ai', txt);
     document.getElementById('complete-row').style.display = 'block';
@@ -897,16 +884,27 @@ function handleKey(e){
   }, 0);
 }
 
+// ========== 気づきダウンロード ==========
+function downloadSummary(sessionNum, text){
+  const s = SESSIONS.find(x => x.num === sessionNum);
+  const date = new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
+  const content = `INSCOPE 第${sessionNum}回「${s ? s.theme : 'セッション'}」 気づきメモ\n${date}\n\n${text}`;
+  const blob = new Blob([content], {type: 'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `INSCOPE_第${sessionNum}回_気づき.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ========== セッション完了 ==========
 async function completeSession(){
   document.getElementById('complete-row').style.display = 'none';
   document.querySelector('.inputarea').style.display = 'none';
-
   const s = SESSIONS.find(x => x.num === currentSession);
   const isLast = currentSession === 5;
   const wrap = document.getElementById('messages');
 
-  // --- 今回の気づき要約 ---
   const summaryDiv = document.createElement('div');
   summaryDiv.className = 'msg ai';
   summaryDiv.style.opacity = '1';
@@ -946,25 +944,26 @@ async function completeSession(){
     const data = await res.json();
     savedSummaryText = data.content[0].text;
 
+    // ダウンロードボタン付きで表示
+    const sessNum = currentSession;
     summaryDiv.innerHTML = `
       <div class="sender">今日の気づき ✦</div>
       <div class="summary-box">
         <div class="summary-label">✦ &nbsp; THIS SESSION</div>
         <div class="summary-content">${savedSummaryText.replace(/\n/g,'<br>')}</div>
+        <button class="download-btn" onclick="downloadSummary(${sessNum}, \`${savedSummaryText.replace(/\\/g,'\\\\').replace(/`/g,'\\`')}\`)">📄 &nbsp; 気づきをダウンロード</button>
       </div>`;
   } catch(e){
     summaryDiv.remove();
   }
 
-  // --- KVに完了・要約・履歴削除を保存 ---
   if(!progress.completedSessions.includes(currentSession)){
     progress.completedSessions.push(currentSession);
   }
   if(savedSummaryText) progress.summaries[currentSession] = savedSummaryText;
-  delete progress.activeSessions[currentSession]; // 進行中から削除
+  delete progress.activeSessions[currentSession];
   await saveProgress();
 
-  // --- 最終回：5回の総まとめ ---
   if(isLast){
     const finalDiv = document.createElement('div');
     finalDiv.className = 'msg ai';
@@ -984,7 +983,6 @@ async function completeSession(){
         const sess = SESSIONS.find(x => x.num === i);
         if(t) allSummaries.push(`【第${i}回「${sess.theme}」】\n${t}`);
       }
-
       const finalRes = await fetch('/api/claude',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -1012,30 +1010,23 @@ async function completeSession(){
       });
       const finalData = await finalRes.json();
       const finalText = finalData.content[0].text;
-
       finalDiv.innerHTML = `
         <div class="sender">5回の総まとめ ✦</div>
         <div class="final-summary-box">
           <div class="final-summary-label">✦ &nbsp; INSCOPE — 5 SESSIONS COMPLETE</div>
           <div class="final-summary-content">${finalText.replace(/\n/g,'<br>')}</div>
         </div>`;
-    } catch(e){
-      finalDiv.remove();
-    }
+    } catch(e){ finalDiv.remove(); }
   }
 
-  // --- 完了メッセージ ---
   const div = document.createElement('div');
   div.className = 'msg ai';
-
   const completionText = isLast
     ? `✦ &nbsp; 全5回のセッションが完了しました。<br><br>ここまで深く向き合ってくださり、ありがとうございました。<br><br>今日語ってくださった言葉に、あなたのすべてが宿っています。<br><br>自己理解は、一度で完成するものではありません。<br>時を経て、経験を重ねて、また星と向き合うたびに、<br>見えてくるものが変わっていきます。<br>ぜひ、また戻ってきてください。<br><br><span style="color:var(--gold);letter-spacing:2px;font-size:12px;">─────────────────</span><br><br>🌙 さらに深く向き合いたい方へ<br><span style="font-size:12px;color:var(--accent);">（アフターセッションのご案内 ― 近日公開予定）</span><br><br><span style="color:var(--gold);letter-spacing:2px;font-size:12px;">─────────────────</span>`
     : `✦ &nbsp; 第${currentSession}回「${s ? s.theme : ''}」が完了しました。<br><br>今日の気づきを大切に、ゆっくり感じてみてください。<br>次のセッションへ進む準備ができたら、もう一度リンクを開いてください。`;
-
   div.innerHTML = `<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left-color:#b8965a;">${completionText}</div>`;
   wrap.appendChild(div);
 
-  // --- 一覧へ戻るボタン ---
   const backDiv = document.createElement('div');
   backDiv.style.cssText = 'text-align:center;padding:24px 0;';
   backDiv.innerHTML = `<button onclick="showSessionScreen()" style="background:transparent;border:1px solid rgba(184,150,90,.4);color:rgba(122,92,58,.9);font-family:inherit;font-size:11px;letter-spacing:3px;padding:10px 24px;cursor:pointer;border-radius:1px;">← セッション一覧へ戻る</button>`;
