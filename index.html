@@ -50,12 +50,15 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .sess-item:not(.done):hover{border-color:var(--gold);background:rgba(184,150,90,.03);}
 .sess-item.selected{border-color:var(--gold);background:rgba(184,150,90,.06);}
 .sess-item.done{opacity:0.45;cursor:default;}
+.sess-item.in-progress{border-color:rgba(184,150,90,.4);background:rgba(184,150,90,.03);}
 .sess-num{width:30px;height:30px;border-radius:50%;border:1px solid var(--gold-light);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--gold);flex-shrink:0;font-family:Georgia,serif;}
 .sess-item.done .sess-num{background:var(--gold);color:white;border-color:var(--gold);}
+.sess-item.in-progress .sess-num{border-color:var(--gold);color:var(--gold);}
 .sess-info{flex:1;}
 .sess-theme{font-size:13px;color:var(--ink);margin-bottom:3px;}
 .sess-item.done .sess-theme{text-decoration:line-through;}
 .sess-desc{font-size:11px;color:var(--accent);}
+.sess-resume-label{font-size:10px;color:var(--gold);letter-spacing:2px;}
 .sess-done-label{font-size:10px;color:var(--gold);letter-spacing:2px;}
 .start-btn{width:100%;padding:13px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:Georgia,serif;font-size:12px;letter-spacing:5px;cursor:pointer;transition:all .3s;border-radius:1px;}
 .start-btn:not(:disabled):hover{background:var(--gold);color:white;}
@@ -333,42 +336,40 @@ const SESSIONS = [
 ];
 
 let sessionData = null;
+let sessionId = null;
+// サーバーサイドで管理するプログレス
+let progress = { completedSessions: [], activeSessions: {}, summaries: {} };
 let conversationHistory = [];
 let isLoading = false;
 let currentSession = null;
-let completedSessions = [];
 let userContext = { theme: '', detail: '' };
 
-// ========== ストレージキー ==========
-function getStorageKey(){
-  return 'jk_' + (sessionData.id || String(sessionData.expires).slice(-10));
-}
-
-// ========== 完了セッション管理 ==========
-function loadCompletedSessions(){
-  try{ completedSessions = JSON.parse(localStorage.getItem(getStorageKey())) || []; }
-  catch(e){ completedSessions = []; }
-}
-function saveCompletedSession(num){
-  if(!completedSessions.includes(num)){
-    completedSessions.push(num);
-    try{ localStorage.setItem(getStorageKey(), JSON.stringify(completedSessions)); }catch(e){}
+// ========== KVへの状態保存 ==========
+async function saveProgress() {
+  if (!sessionId) return;
+  try {
+    await fetch('/api/save-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, progress })
+    });
+  } catch(e) {
+    console.error('saveProgress failed:', e);
   }
 }
 
-// ========== セッション要約の保存・読み込み ==========
-function saveSummary(num, text){
-  try{ localStorage.setItem(getStorageKey() + '_sum_' + num, text); }catch(e){}
-}
-function getSummary(num){
-  try{ return localStorage.getItem(getStorageKey() + '_sum_' + num) || ''; }catch(e){ return ''; }
+// ========== 会話履歴トリム（上限20件） ==========
+function trimHistory(history) {
+  if (history.length <= 20) return history;
+  // 先頭2件（初回交換）＋最新18件を保持
+  return [...history.slice(0, 2), ...history.slice(-18)];
 }
 
 // ========== 前回までの気づきをプロンプトに注入 ==========
 function getPreviousSummaries(upToSession){
   const parts = [];
   for(let i = 1; i < upToSession; i++){
-    const text = getSummary(i);
+    const text = progress.summaries[i] || '';
     if(text){
       const s = SESSIONS.find(x => x.num === i);
       parts.push(`【第${i}回「${s.theme}」での気づき】\n${text}`);
@@ -384,16 +385,33 @@ window.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   const sp = params.get('s');
   if(sp){
+    sessionId = sp;
     try{
-      const res = await fetch(`/api/get-session?id=${sp}`);
-      if(!res.ok){
-        const err = await res.json();
+      // セッションデータとプログレスを並行取得
+      const [sessRes, stateRes] = await Promise.all([
+        fetch(`/api/get-session?id=${sp}`),
+        fetch(`/api/get-state?id=${sp}`)
+      ]);
+
+      if(!sessRes.ok){
+        const err = await sessRes.json();
         if(err.error === 'expired'){ showExpired(); return; }
         throw new Error(err.error || 'データの取得に失敗しました');
       }
-      const decoded = await res.json();
+      const decoded = await sessRes.json();
       if(decoded.expires && Date.now() > decoded.expires){ showExpired(); return; }
       sessionData = decoded;
+
+      // プログレス読み込み
+      if(stateRes.ok){
+        const stateData = await stateRes.json();
+        progress = {
+          completedSessions: stateData.completedSessions || [],
+          activeSessions: stateData.activeSessions || {},
+          summaries: stateData.summaries || {}
+        };
+      }
+
       showSessionScreen();
     } catch(e){
       showError2('データの読み込みに失敗しました。URLを確認してください。');
@@ -404,9 +422,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 function showSessionScreen(){
-  loadCompletedSessions();
   document.getElementById('operator-screen').style.display = 'none';
   document.getElementById('client-screen').style.display = 'none';
+  document.getElementById('questionnaire-screen').style.display = 'none';
   const ss = document.getElementById('session-screen');
   ss.style.display = 'flex';
   currentSession = null;
@@ -433,7 +451,7 @@ function renderSessionList(){
   const list = document.getElementById('sess-list');
   list.innerHTML = '';
 
-  if(completedSessions.length === 5){
+  if(progress.completedSessions.length === 5){
     list.innerHTML = '<div class="all-done-msg">✦ &nbsp; 全5回のセッションが完了しました &nbsp; ✦<br><br>ここまで深く向き合ってくださり、ありがとうございました。</div>';
     document.getElementById('start-area').style.display = 'none';
     return;
@@ -441,15 +459,18 @@ function renderSessionList(){
 
   document.getElementById('start-area').style.display = 'block';
   document.getElementById('start-btn').disabled = true;
+  document.getElementById('start-btn').textContent = '✦ \u3000このセッションを始める\u3000✦';
 
   SESSIONS.forEach(s => {
-    const done = completedSessions.includes(s.num);
+    const done = progress.completedSessions.includes(s.num);
+    const inProgress = !done && !!progress.activeSessions[s.num];
     const div = document.createElement('div');
-    div.className = `sess-item${done ? ' done' : ''}`;
+    div.className = `sess-item${done ? ' done' : ''}${inProgress ? ' in-progress' : ''}`;
     div.innerHTML = `
       <div class="sess-num">${done ? '✓' : s.num}</div>
       <div class="sess-info">
         <div class="sess-theme">${s.theme}</div>
+        ${inProgress ? '<div class="sess-resume-label">▶ 途中から再開</div>' : ''}
       </div>
       ${done ? '<div class="sess-done-label">完了</div>' : ''}
     `;
@@ -462,16 +483,30 @@ function selectSession(num, el){
   document.querySelectorAll('.sess-item').forEach(i => i.classList.remove('selected'));
   el.classList.add('selected');
   currentSession = num;
-  document.getElementById('start-btn').disabled = false;
+
+  const inProgress = !!progress.activeSessions[num];
+  const startBtn = document.getElementById('start-btn');
+  startBtn.disabled = false;
+  startBtn.textContent = inProgress
+    ? '▶ \u3000途中から再開する\u3000▶'
+    : '✦ \u3000このセッションを始める\u3000✦';
 }
 
 function startSelectedSession(){
   if(!currentSession) return;
-  showQuestionnaireScreen();
+  const active = progress.activeSessions[currentSession];
+  if(active){
+    // 再開：保存済みのテーマと会話履歴を復元
+    userContext = { theme: active.theme || '', detail: active.detail || '' };
+    showClientScreen(active.history || []);
+  } else {
+    showQuestionnaireScreen();
+  }
 }
 
-function showClientScreen(){
+function showClientScreen(existingHistory = []){
   document.getElementById('session-screen').style.display = 'none';
+  document.getElementById('questionnaire-screen').style.display = 'none';
   document.getElementById('client-screen').style.display = 'block';
   document.querySelector('.inputarea').style.display = 'block';
   document.getElementById('complete-row').style.display = 'none';
@@ -482,18 +517,30 @@ function showClientScreen(){
   document.getElementById('chat-sess-label').textContent =
     s ? `第${s.num}回 ｜ ${s.theme}` : '';
 
-  conversationHistory = [];
-  setTimeout(() => startConversation(), 600);
+  conversationHistory = existingHistory;
+
+  if(existingHistory.length > 0){
+    // 再開モード：過去メッセージを表示
+    document.getElementById('chat-intro').style.display = 'none';
+    existingHistory.forEach(msg => {
+      addMsg(msg.role === 'user' ? 'user' : 'ai', msg.content);
+    });
+    document.getElementById('complete-row').style.display = 'block';
+    setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
+  } else {
+    // 新規セッション
+    document.getElementById('chat-intro').style.display = 'block';
+    setTimeout(() => startConversation(), 600);
+  }
 }
 
-// ========== システムプロンプト構築（前回要約を注入） ==========
+// ========== システムプロンプト構築 ==========
 function buildSystemPrompt(sessionNum, userContext={}){
   const d = sessionData;
   const lines = Object.entries(d.planets).map(([p,v]) =>
     `${p}：${v.sign}${v.house ? `（${v.house}）` : ''}`
   ).join('\n');
   const ascmc = [d.asc ? `ASC：${d.asc}` : '', d.mc ? `MC：${d.mc}` : ''].filter(Boolean).join('\n');
-  const note = '';
 
   const userContextSection = (userContext && (userContext.theme || userContext.detail))
     ? `\n━━━━━━━━━━━━━━━━━━━━━━\n【クライアントが今回掘り下げたいこと】\n━━━━━━━━━━━━━━━━━━━━━━\nテーマ：${userContext.theme || '未選択'}\n詳細：${userContext.detail || '（記入なし）'}\n\n※このテーマを念頭に置きながら対話を進めてください。ただし直接的に「○○について話しましょう」と切り出さず、自然な流れで触れてください。`
@@ -507,7 +554,7 @@ ${ascmc}
 
 【主なアスペクト】
 ${d.aspects || '（アスペクト情報なし）'}
-${note}${userContextSection}`;
+${userContextSection}`;
 
   const sessionInstructions = {
     1: `あなたは星読みと自己理解の対話サポーターです。
@@ -649,9 +696,7 @@ ${note}${userContextSection}`;
 このセッションはクライアント自身の言葉で締めくくります。`
   };
 
-  // 前回までの気づきを注入
   const previousSummaries = getPreviousSummaries(sessionNum);
-
   return horoData + previousSummaries + '\n\n' + (sessionInstructions[sessionNum] || sessionInstructions[1]);
 }
 
@@ -665,7 +710,6 @@ function showQuestionnaireScreen(){
   document.getElementById('q-sess-title').textContent =
     s ? `第${s.num}回「${s.theme}」を始める前に` : 'セッションを始める前に';
 
-  // オプションリセット
   document.querySelectorAll('.q-option').forEach(o => o.classList.remove('selected'));
   document.getElementById('q-detail').value = '';
   document.getElementById('q-start-btn').disabled = true;
@@ -678,13 +722,22 @@ function selectTheme(el, theme){
   document.getElementById('q-start-btn').disabled = false;
 }
 
-function startWithQuestionnaire(){
+async function startWithQuestionnaire(){
   userContext.detail = document.getElementById('q-detail').value.trim();
+
+  // カテゴリーをKVにロック保存（以降は再選択不可）
+  progress.activeSessions[currentSession] = {
+    theme: userContext.theme,
+    detail: userContext.detail,
+    history: []
+  };
+  saveProgress(); // 非同期・待たない
+
   document.getElementById('questionnaire-screen').style.display = 'none';
   showClientScreen();
 }
 
-// ========== セッション生成 ==========
+// ========== セッション生成（認定者パネル） ==========
 async function generateSession(){
   document.getElementById('op-error').style.display = 'none';
   const planets = {};
@@ -773,14 +826,9 @@ async function callAI(isFirst=false){
   typing.style.display = 'block';
   window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
   try{
-    // 会話履歴が長くなりすぎないよう直近20件に制限（最初の2件は保持）
-    const trimHistory = (history, maxLen = 20) => {
-      if (history.length <= maxLen) return history;
-      return [...history.slice(0, 2), ...history.slice(-(maxLen - 2))];
-    };
     const messages = isFirst
       ? [{role:'user', content:'セッションを始めてください。'}]
-      : trimHistory(conversationHistory);
+      : conversationHistory;
     const res = await fetch('/api/claude',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -793,7 +841,6 @@ async function callAI(isFirst=false){
     });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error?.message || 'APIエラー');
-    if(!data.content || !data.content[0]) throw new Error('AIからの応答を取得できませんでした。しばらく待ってから再度お試しください。');
     const txt = data.content[0].text;
     if(isFirst){
       conversationHistory = [
@@ -803,6 +850,14 @@ async function callAI(isFirst=false){
     } else {
       conversationHistory.push({role:'assistant', content:txt});
     }
+
+    // 履歴トリム → KVに保存
+    conversationHistory = trimHistory(conversationHistory);
+    if(progress.activeSessions[currentSession]){
+      progress.activeSessions[currentSession].history = conversationHistory;
+      saveProgress(); // 非同期
+    }
+
     typing.style.display = 'none';
     addMsg('ai', txt);
     document.getElementById('complete-row').style.display = 'block';
@@ -844,7 +899,6 @@ function handleKey(e){
 
 // ========== セッション完了 ==========
 async function completeSession(){
-  saveCompletedSession(currentSession);
   document.getElementById('complete-row').style.display = 'none';
   document.querySelector('.inputarea').style.display = 'none';
 
@@ -890,11 +944,7 @@ async function completeSession(){
       })
     });
     const data = await res.json();
-    if(!data.content || !data.content[0]) throw new Error('まとめの生成に失敗しました。再度お試しください。');
     savedSummaryText = data.content[0].text;
-
-    // 要約をlocalStorageに保存（次回セッションへの引き継ぎ用）
-    saveSummary(currentSession, savedSummaryText);
 
     summaryDiv.innerHTML = `
       <div class="sender">今日の気づき ✦</div>
@@ -905,6 +955,14 @@ async function completeSession(){
   } catch(e){
     summaryDiv.remove();
   }
+
+  // --- KVに完了・要約・履歴削除を保存 ---
+  if(!progress.completedSessions.includes(currentSession)){
+    progress.completedSessions.push(currentSession);
+  }
+  if(savedSummaryText) progress.summaries[currentSession] = savedSummaryText;
+  delete progress.activeSessions[currentSession]; // 進行中から削除
+  await saveProgress();
 
   // --- 最終回：5回の総まとめ ---
   if(isLast){
@@ -920,10 +978,9 @@ async function completeSession(){
     setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
 
     try{
-      // 全セッションの気づきを収集
       const allSummaries = [];
       for(let i = 1; i <= 5; i++){
-        const t = i === currentSession ? savedSummaryText : getSummary(i);
+        const t = i === currentSession ? savedSummaryText : (progress.summaries[i] || '');
         const sess = SESSIONS.find(x => x.num === i);
         if(t) allSummaries.push(`【第${i}回「${sess.theme}」】\n${t}`);
       }
@@ -954,7 +1011,6 @@ async function completeSession(){
         })
       });
       const finalData = await finalRes.json();
-      if(!finalData.content || !finalData.content[0]) throw new Error('総まとめの生成に失敗しました。再度お試しください。');
       const finalText = finalData.content[0].text;
 
       finalDiv.innerHTML = `
