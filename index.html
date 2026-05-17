@@ -223,7 +223,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 
   <div class="sec">プラン選択</div>
   <div style="display:flex;flex-direction:column;gap:8px;">
-    <div class="plan-option selected" id="plan-trial" onclick="selectPlan('trial')">
+    <div class="plan-option" id="plan-trial" onclick="selectPlan('trial')">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:13px;color:var(--gold-light);letter-spacing:2px;">お試しプラン</div>
@@ -232,7 +232,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
         <div style="font-size:16px;color:var(--gold-light);font-family:Georgia,serif;">¥3,000</div>
       </div>
     </div>
-    <div class="plan-option" id="plan-full" onclick="selectPlan('full')">
+    <div class="plan-option selected" id="plan-full" onclick="selectPlan('full')">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:13px;color:var(--gold-light);letter-spacing:2px;">フルプラン</div>
@@ -358,12 +358,15 @@ const SESSIONS = [
 
 let sessionData = null;
 let sessionId = null;
-let selectedPlan = 'trial';
+let selectedPlan = 'full';
 let progress = { completedSessions: [], activeSessions: {}, summaries: {} };
 let conversationHistory = [];
 let isLoading = false;
 let currentSession = null;
 let userContext = { theme: '', detail: '' };
+let sessionStartTime = null;
+let warningTimer = null;
+let forceEndTimer = null;
 
 async function saveProgress() {
   if (!sessionId) return;
@@ -586,7 +589,12 @@ ${userContextSection}`;
 ・「〜すべき」「〜が正解」という表現を使わない
 
 クライアントの返答には共感を示しながら、さらに深く自己理解が進む問いを重ねてください。
-このセッションは詳しく・丁寧に進めます。`,
+このセッションは詳しく・丁寧に進めます。
+
+【セッションの締め方】
+対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
+「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
+下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
 
     2: `あなたは星読みと自己理解の対話サポーターです。
 
@@ -611,7 +619,12 @@ ${userContextSection}`;
 ・強みの説明を長くしすぎない
 ・クライアントが否定しても反論しない（「そう感じるんですね」と受け取る）
 
-このセッションは特徴を捉えてさらっと進めます。`,
+このセッションは特徴を捉えてさらっと進めます。
+
+【セッションの締め方】
+対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
+「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
+下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
 
     3: `あなたは星読みと自己理解の対話サポーターです。
 
@@ -642,7 +655,12 @@ ${userContextSection}`;
 ・パターンを一方的に列挙しない
 
 クライアントが沈黙したり「わからない」と言っても、急かさず「そうですよね、ゆっくり感じてみてください」と受け取ってください。
-このセッションは言葉を選び、丁寧かつ温かく進めます。`,
+このセッションは言葉を選び、丁寧かつ温かく進めます。
+
+【セッションの締め方】
+対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
+「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
+下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
 
     4: `あなたは星読みと自己理解の対話サポーターです。
 
@@ -667,7 +685,12 @@ ${userContextSection}`;
 ・現実的なリスクや課題をこのセッションで持ち出さない
 ・クライアントの夢を否定・縮小しない
 
-このセッションは前向きな言葉で、明るく進めます。`,
+このセッションは前向きな言葉で、明るく進めます。
+
+【セッションの締め方】
+対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
+「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
+下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
 
     5: `あなたは星読みと自己理解の対話サポーターです。
 
@@ -695,7 +718,12 @@ ${userContextSection}`;
 ・クライアントの締めくくりに追加の解説を加えない
 ・セッションをAIが終わらせない（クライアントの言葉で終わる）
 
-このセッションはクライアント自身の言葉で締めくくります。`
+このセッションはクライアント自身の言葉で締めくくります。
+
+【セッションの締め方】
+クライアントが自分の言葉で語り終えたら、以下の言葉でセッションを締めくくってください：
+「今日は本当にありがとうございました。あなたとの5回の対話は、私にとっても特別な時間でした。
+下の『このセッションを完了する』ボタンを押して、5回分の総まとめを受け取ってください。」`,
   };
 
   const previousSummaries = getPreviousSummaries(sessionNum);
@@ -806,6 +834,7 @@ function showError2(msg){
 
 async function startConversation(){
   conversationHistory = [];
+  startSessionTimer();
   await callAI(true);
 }
 
@@ -884,12 +913,55 @@ function handleKey(e){
   }, 0);
 }
 
+// ========== セッションタイマー ==========
+function startSessionTimer(){
+  sessionStartTime = Date.now();
+  clearSessionTimers();
+
+  // 60分後：警告メッセージを表示
+  warningTimer = setTimeout(() => {
+    const wrap = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg ai';
+    div.style.opacity = '1';
+    div.innerHTML = `<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left:2px solid var(--gold);color:var(--ink);">✦ &nbsp; セッションを始めて60分が経ちました。<br><br>今日の気づきをそろそろまとめていきましょう。<br>準備ができたら「このセッションを完了する」ボタンを押してください。</div>`;
+    wrap.appendChild(div);
+    setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
+  }, 60 * 60 * 1000);
+
+  // 90分後：強制終了
+  forceEndTimer = setTimeout(() => {
+    const wrap = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg ai';
+    div.style.opacity = '1';
+    div.innerHTML = `<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left:2px solid var(--gold);color:var(--ink);">✦ &nbsp; セッションを始めて90分が経ちました。<br><br>今日はここで一区切りにしましょう。<br>気づきをまとめて保存します。</div>`;
+    wrap.appendChild(div);
+    setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
+
+    // 入力欄をロック
+    document.getElementById('user-input').disabled = true;
+    document.querySelector('.sendbtn').disabled = true;
+    document.getElementById('user-input').placeholder = 'セッション時間が終了しました';
+
+    // 3秒後に自動完了
+    setTimeout(() => completeSession(), 3000);
+  }, 90 * 60 * 1000);
+}
+
+function clearSessionTimers(){
+  if(warningTimer) clearTimeout(warningTimer);
+  if(forceEndTimer) clearTimeout(forceEndTimer);
+  warningTimer = null;
+  forceEndTimer = null;
+}
+
 // ========== 気づきダウンロード ==========
 function downloadSummary(sessionNum, text){
   const s = SESSIONS.find(x => x.num === sessionNum);
   const date = new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
   const content = `INSCOPE 第${sessionNum}回「${s ? s.theme : 'セッション'}」 気づきメモ\n${date}\n\n${text}`;
-  const blob = new Blob([content], {type: 'text/plain;charset=utf-8'});
+  const blob = new Blob(['\uFEFF' + content], {type: 'text/plain;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `INSCOPE_第${sessionNum}回_気づき.txt`;
@@ -899,6 +971,7 @@ function downloadSummary(sessionNum, text){
 
 // ========== セッション完了 ==========
 async function completeSession(){
+  clearSessionTimers();
   document.getElementById('complete-row').style.display = 'none';
   document.querySelector('.inputarea').style.display = 'none';
   const s = SESSIONS.find(x => x.num === currentSession);
