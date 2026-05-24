@@ -163,9 +163,10 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
   <textarea id="aspects" placeholder="例：&#10;・太陽（牡羊座）× 土星（蠍座）― 150度&#10;・月（蟹座）× 火星（山羊座）― 180度"></textarea>
   <div class="sec">プラン選択</div>
   <div style="display:flex;flex-direction:column;gap:8px;">
+    <!-- ▼ 修正①：お試しプラン → 第1章プラン -->
     <div class="plan-option" id="plan-trial" onclick="selectPlan('trial')">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div><div style="font-size:13px;color:var(--gold-light);letter-spacing:2px;">お試しプラン</div><div style="font-size:11px;color:rgba(212,180,131,.6);margin-top:4px;">第1回のみ・7日間</div></div>
+        <div><div style="font-size:13px;color:var(--gold-light);letter-spacing:2px;">第1章プラン</div><div style="font-size:11px;color:rgba(212,180,131,.6);margin-top:4px;">第1回のみ・7日間</div></div>
         <div style="font-size:16px;color:var(--gold-light);font-family:Georgia,serif;">¥3,000</div>
       </div>
     </div>
@@ -408,6 +409,27 @@ ${ascmc}
 ${d.aspects||'（アスペクト情報なし）'}
 ${userContextSection}`;
 
+  // ▼ 修正②：プランに応じた締め言葉を出し分け
+  const isTrial = d.plan === 'trial';
+  const closingWords = isTrial
+    ? `「今日は本当にありがとうございました。
+今日感じた気づきを、ぜひゆっくり持ち帰ってみてください。
+下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`
+    : `「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
+下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`;
+
+  // ▼ 修正③：段階的な締め方（全セッション共通）
+  const timingInstruction = `
+【セッションの時間感覚・締め方】
+このセッションは最低30〜45分かけて進めてください。
+クライアントの返答が5回に満たない場合は、締めに入らないでください。まだ対話を続け、より深い気づきを引き出してください。
+対話が十分深まったと感じたら、まず：
+「今日はずいぶん深いところまで来ましたね。そろそろ今日の気づきを振り返りに入りましょうか？」
+と確認してから、締めに移ってください。
+クライアントが準備できたと感じたときに初めて、完了ボタンの案内をしてください。
+60分が経過してもまだ対話が続いている場合は「そろそろ今日の振り返りをしていきますね。」と自然に締めに入り、完了ボタンを案内してください。
+（90分はシステムが自動的に終了します。）`;
+
   const sessionInstructions={
     1:`あなたは星読みと自己理解の対話サポーターです。
 
@@ -439,9 +461,10 @@ ${userContextSection}`;
 このセッションは詳しく・丁寧に進めます。
 
 【セッションの締め方】
-対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
-「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
-下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
+${timingInstruction}
+
+準備ができたら以下の言葉で締めくくってください：
+${closingWords}`,
 
     2:`あなたは星読みと自己理解の対話サポーターです。
 
@@ -469,9 +492,10 @@ ${userContextSection}`;
 このセッションは特徴を捉えてさらっと進めます。
 
 【セッションの締め方】
-対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
-「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
-下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
+${timingInstruction}
+
+準備ができたら以下の言葉で締めくくってください：
+${closingWords}`,
 
     3:`あなたは星読みと自己理解の対話サポーターです。
 
@@ -499,9 +523,10 @@ ${userContextSection}`;
 このセッションは言葉を選び、丁寧かつ温かく進めます。
 
 【セッションの締め方】
-対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
-「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
-下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
+${timingInstruction}
+
+準備ができたら以下の言葉で締めくくってください：
+${closingWords}`,
 
     4:`あなたは星読みと自己理解の対話サポーターです。
 
@@ -524,9 +549,10 @@ ${userContextSection}`;
 このセッションは前向きな言葉で、明るく進めます。
 
 【セッションの締め方】
-対話が自然な区切りを迎えたら、以下の言葉でセッションを締めくくってください：
-「今日は本当にありがとうございました。次のセッションでまたお会いしましょう。
-下の『このセッションを完了する』ボタンを押して、気づきを受け取ってください。」`,
+${timingInstruction}
+
+準備ができたら以下の言葉で締めくくってください：
+${closingWords}`,
 
     5:`あなたは星読みと自己理解の対話サポーターです。
 
@@ -563,6 +589,8 @@ ${userContextSection}`;
 ・第1段階をすっ飛ばして締めに入らない
 ・「あなたの使命は〇〇です」とAIが断言しない
 ・クライアントの締めくくりに追加の解説を加えない
+
+${timingInstruction}
 
 このセッションはクライアント自身の言葉で締めくくります。
 
@@ -628,7 +656,8 @@ async function generateSession(){
     const{id}=await res.json();
     const base=window.location.href.split('?')[0];
     document.getElementById('result-url').textContent=`${base}?s=${id}`;
-    const planLabel=isTrial?'お試しプラン（第1回のみ・7日間）':'フルプラン（全5回・30日間）';
+    // ▼ 修正①：第1章プラン表記
+    const planLabel=isTrial?'第1章プラン（第1回のみ・7日間）':'フルプラン（全5回・30日間）';
     const d=new Date(obj.expires).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
     document.getElementById('expiry-note').textContent=`${planLabel} ／ 有効期限：${d}まで`;
     const rb=document.getElementById('result-box');rb.style.display='block';rb.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -812,22 +841,35 @@ async function completeSession(){
         const sess=SESSIONS.find(x=>x.num===i);
         if(t)allSummaries.push(`【第${i}回「${sess.theme}」】\n${t}`);
       }
+
+      // ▼ 修正④：星読みを含む総まとめ・ホロスコープデータを渡す
+      const d=sessionData;
+      const planetLines=Object.entries(d.planets).map(([p,v])=>`${p}：${v.sign}${v.house?`（${v.house}）`:''}`).join('\n');
+      const ascMcLines=[d.asc?`ASC：${d.asc}`:'',d.mc?`MC：${d.mc}`:''].filter(Boolean).join('\n');
+      const horoText=`【ホロスコープデータ】\n${planetLines}\n${ascMcLines}\n\n【主なアスペクト】\n${d.aspects||'（なし）'}`;
+
       const finalRes=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2500,  // ▼ 修正④：2500に引き上げ
           system:`あなたはセッション全体の統合サポーターです。
-5回のセッションを通じたクライアントの気づきを統合し、「あなたという人間の本質」を温かく・肯定的にまとめてください。
+ホロスコープデータと5回のセッションを通じたクライアントの気づきを統合し、「あなたという人間の本質」を温かく・肯定的にまとめてください。
 
 構成：
-1. 【あなたという人】2〜3文で本質を表現
-2. 【5回を通じて見えてきたこと】箇条書き3〜4点
-3. 【これからのあなたへ】1段落、応援のメッセージ
+1. 【あなたという人】太陽・月・ASCを中心に2〜3文で本質を表現
+2. 【星が示す、あなたの4つの側面】
+   ◎ 内なる自分（太陽・月・ASC）：3〜4文
+   ◎ 才能と表現（水星・金星・火星）：3〜4文
+   ◎ 成長のテーマ（土星・キロン・冥王星）：3〜4文
+   ◎ 可能性と使命（木星・天王星・海王星・ノード・MC）：3〜4文
+3. 【5回を通じて見えてきたこと】箇条書き4〜5点（セッションの気づきを中心に）
+4. 【これからのあなたへ】1段落、応援のメッセージ
 
 ルール：
 ・星座名・ハウス名などの専門用語は使わない
 ・クライアントが語った言葉やキーワードを活かす
 ・断定ではなく「〜というあなたが見えてきました」という表現
-・温かく、力強く、前向きなトーンで書く`,
-          messages:[{role:'user',content:'5回のセッション全体を統合した総まとめをお願いします。\n\n'+allSummaries.join('\n\n')}]})});
+・温かく、力強く、前向きなトーンで書く
+・各セクションは見出しで明確に区切る`,
+          messages:[{role:'user',content:`5回のセッション全体を統合した総まとめをお願いします。\n\n${horoText}\n\n${allSummaries.join('\n\n')}`}]})});
       const finalData=await finalRes.json();
       const finalText=finalData.content[0].text;
       finalDiv.innerHTML=`
