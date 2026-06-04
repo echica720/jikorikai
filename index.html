@@ -96,6 +96,8 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .sendbtn{width:44px;height:44px;background:var(--deep);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .sendbtn:hover{background:var(--accent);}
 .sendbtn svg{width:18px;height:18px;fill:var(--gold);}
+.breakbtn{width:36px;height:44px;background:rgba(184,150,90,.12);border:1px solid rgba(184,150,90,.3);color:var(--accent);font-size:16px;cursor:pointer;border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.breakbtn:hover{background:rgba(184,150,90,.25);}
 .completerow{max-width:700px;margin:10px auto 0;text-align:center;display:none;}
 .complete-btn{background:transparent;border:1px solid rgba(184,150,90,.45);color:rgba(122,92,58,.9);font-family:inherit;font-size:11px;letter-spacing:3px;padding:9px 24px;cursor:pointer;transition:all .3s;border-radius:1px;}
 .complete-btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(184,150,90,.05);}
@@ -129,6 +131,9 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 .q-btn{width:100%;padding:13px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:Georgia,serif;font-size:12px;letter-spacing:5px;cursor:pointer;transition:all .3s;border-radius:1px;margin-top:4px;}
 .q-btn:not(:disabled):hover{background:var(--gold);color:white;}
 .q-btn:disabled{opacity:0.35;cursor:default;}
+.reset-num-btn{background:rgba(255,255,255,.04);border:1px solid rgba(184,150,90,.2);color:rgba(212,180,131,.7);font-family:inherit;font-size:11px;letter-spacing:2px;padding:6px 14px;cursor:pointer;border-radius:1px;transition:all .2s;}
+.reset-num-btn:hover{border-color:var(--gold);color:var(--gold-light);}
+.reset-num-btn.selected{border-color:var(--gold);background:rgba(184,150,90,.15);color:var(--gold-light);}
 </style>
 </head>
 <body>
@@ -161,6 +166,22 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
   </div>
   <div class="sec" style="margin-top:24px;">主なアスペクト</div>
   <textarea id="aspects" placeholder="例：&#10;・太陽（牡羊座）× 土星（蠍座）― 150度&#10;・月（蟹座）× 火星（山羊座）― 180度"></textarea>
+  <div class="sec" style="margin-top:24px;">リピーター用 前回の気づき引き継ぎ</div>
+  <textarea id="prev-insights" placeholder="例：&#10;・自分が人の期待に応えようとするパターンに気づいた&#10;・本当にやりたいことを後回しにしてきたとわかった&#10;&#10;※前回の総まとめや気づきをここに貼り付けてください。AIが引き継ぎ情報として読み込みます。" style="min-height:96px;"></textarea>
+  <div class="sec" style="margin-top:24px;">セッションリセット（認定者専用）</div>
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <input type="text" id="reset-session-id" placeholder="セッションID（URLの ?s= 以降）" />
+    <div style="display:flex;gap:6px;flex-wrap:wrap;" id="reset-btns">
+      <button class="reset-num-btn selected" onclick="selectResetNum(this,1)">第1回</button>
+      <button class="reset-num-btn" onclick="selectResetNum(this,2)">第2回</button>
+      <button class="reset-num-btn" onclick="selectResetNum(this,3)">第3回</button>
+      <button class="reset-num-btn" onclick="selectResetNum(this,4)">第4回</button>
+      <button class="reset-num-btn" onclick="selectResetNum(this,5)">第5回</button>
+    </div>
+    <button class="btn" id="reset-btn" onclick="resetSession()" style="margin-top:8px;"><span>↺ &nbsp; 選択した回をリセットする &nbsp; ↺</span></button>
+    <div class="errmsg" id="reset-error"></div>
+    <div id="reset-success" style="display:none;font-size:11px;color:#7a9a6a;margin-top:4px;letter-spacing:2px;"></div>
+  </div>
   <div class="sec">プラン選択</div>
   <div style="display:flex;flex-direction:column;gap:8px;">
     <!-- ▼ 修正①：お試しプラン → 第1章プラン -->
@@ -248,6 +269,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
   <div class="inputarea">
     <div class="inputinner">
       <textarea class="userinput" id="user-input" placeholder="感じたこと、思ったことを自由に..." rows="1" onkeydown="handleKey(event)"></textarea>
+      <button class="breakbtn" onclick="insertLineBreak()" title="改行">↵</button>
       <button class="sendbtn" onclick="sendMessage()"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg></button>
     </div>
     <div class="completerow" id="complete-row">
@@ -272,6 +294,31 @@ let progress={completedSessions:[],activeSessions:{},summaries:{}};
 let conversationHistory=[],isLoading=false,currentSession=null;
 let userContext={theme:'',detail:''};
 let sessionStartTime=null,warningTimer=null,forceEndTimer=null;
+let selectedResetNum=1;
+
+function selectResetNum(el,num){
+  document.querySelectorAll('.reset-num-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');selectedResetNum=num;
+}
+
+async function resetSession(){
+  const id=document.getElementById('reset-session-id').value.trim();
+  const errEl=document.getElementById('reset-error');
+  const sucEl=document.getElementById('reset-success');
+  errEl.style.display='none';sucEl.style.display='none';
+  if(!id){errEl.textContent='セッションIDを入力してください';errEl.style.display='block';return;}
+  if(!confirm(`第${selectedResetNum}回の完了をリセットします。よろしいですか？`))return;
+  try{
+    const stateRes=await fetch(`/api/get-state?id=${id}`);
+    if(!stateRes.ok)throw new Error('セッションが見つかりません');
+    const stateData=await stateRes.json();
+    const p={completedSessions:(stateData.completedSessions||[]).filter(n=>n!==selectedResetNum),activeSessions:stateData.activeSessions||{},summaries:stateData.summaries||{}};
+    delete p.activeSessions[selectedResetNum];
+    const saveRes=await fetch('/api/save-state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:id,progress:p})});
+    if(!saveRes.ok)throw new Error('保存に失敗しました');
+    sucEl.textContent=`✓ 第${selectedResetNum}回のリセットが完了しました`;sucEl.style.display='block';
+  }catch(e){errEl.textContent=e.message;errEl.style.display='block';}
+}
 
 async function saveProgress(){
   if(!sessionId)return;
@@ -397,6 +444,8 @@ function buildSystemPrompt(sessionNum,userContext={}){
   const d=sessionData;
   const lines=Object.entries(d.planets).map(([p,v])=>`${p}：${v.sign}${v.house?`（${v.house}）`:''}`).join('\n');
   const ascmc=[d.asc?`ASC：${d.asc}`:'',d.mc?`MC：${d.mc}`:''].filter(Boolean).join('\n');
+  const prevInsightsSection=d.prevInsights
+    ?`\n━━━━━━━━━━━━━━━━━━━━━━\n【前回シリーズからの引き継ぎ情報】\n━━━━━━━━━━━━━━━━━━━━━━\n${d.prevInsights}\n\n※上記は前回のセッションシリーズでクライアントが得た気づきです。今回のセッションでも自然な流れで活かしてください。`:'';
   const userContextSection=(userContext&&(userContext.theme||userContext.detail))
     ?`\n━━━━━━━━━━━━━━━━━━━━━━\n【クライアントが今回掘り下げたいこと】\n━━━━━━━━━━━━━━━━━━━━━━\nテーマ：${userContext.theme||'未選択'}\n詳細：${userContext.detail||'（記入なし）'}\n\n※このテーマを念頭に置きながら対話を進めてください。ただし直接的に「○○について話しましょう」と切り出さず、自然な流れで触れてください。`:'';
   const horoData=`━━━━━━━━━━━━━━━━━━━━━━
@@ -407,7 +456,7 @@ ${ascmc}
 
 【主なアスペクト】
 ${d.aspects||'（アスペクト情報なし）'}
-${userContextSection}`;
+${prevInsightsSection}${userContextSection}`;
 
   // ▼ 修正②：プランに応じた締め言葉を出し分け
   const isTrial = d.plan === 'trial';
@@ -644,6 +693,7 @@ async function generateSession(){
     asc:document.getElementById('asc-sign').value,
     mc:document.getElementById('mc-sign').value,
     aspects:document.getElementById('aspects').value.trim(),
+    prevInsights:document.getElementById('prev-insights').value.trim(),
     clientName:document.getElementById('client-name').value.trim(),
     plan:selectedPlan,
     expires:Date.now()+(isTrial?7:30)*24*60*60*1000,
@@ -744,6 +794,15 @@ function handleKey(e){
   setTimeout(()=>{const ta=document.getElementById('user-input');ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';},0);
 }
 
+function insertLineBreak(){
+  const ta=document.getElementById('user-input');
+  const start=ta.selectionStart;const end=ta.selectionEnd;
+  ta.value=ta.value.substring(0,start)+'\n'+ta.value.substring(end);
+  ta.selectionStart=ta.selectionEnd=start+1;
+  ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';
+  ta.focus();
+}
+
 // タイマー
 function startSessionTimer(){
   sessionStartTime=Date.now();clearSessionTimers();
@@ -784,6 +843,8 @@ function downloadFinalSummary(text){
 
 // セッション完了
 async function completeSession(){
+  const confirmed=confirm('このセッションを完了しますか？\n\n※完了すると気づきがまとめられます。\nまだ続けたい場合は「キャンセル」を押してください。');
+  if(!confirmed)return;
   clearSessionTimers();
   document.getElementById('complete-row').style.display='none';
   document.querySelector('.inputarea').style.display='none';
