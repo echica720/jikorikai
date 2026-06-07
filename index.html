@@ -650,7 +650,12 @@ ${timingInstruction}
   };
 
   const previousSummaries=getPreviousSummaries(sessionNum);
-  return horoData+previousSummaries+'\n\n'+(sessionInstructions[sessionNum]||sessionInstructions[1]);
+  const elapsed=sessionStartTime?Math.floor((Date.now()-sessionStartTime)/60000):0;
+  let timeGuide="";
+  if(elapsed>=60){timeGuide="\n\n※【システム通知・非表示】セッション開始から"+elapsed+"分が経過しています。今すぐ振り返りに入り、完了ボタンを案内してください。新しい問いかけはしないでください。";}
+  else if(elapsed>=55){timeGuide="\n\n※【システム通知・非表示】セッション開始から"+elapsed+"分が経過しています。今の話を丁寧に受け取りつつ、「今日の気づきを言葉にする」方向へ自然に誘導してください。新しいテーマは広げないでください。";}
+  else if(elapsed>=45){timeGuide="\n\n※【システム通知・非表示】セッション開始から"+elapsed+"分が経過しています。新しいテーマは広げず、今の話を深める方向で進めてください。振り返りの準備を意識し始めてください。";}
+  return horoData+previousSummaries+"\n\n"+(sessionInstructions[sessionNum]||sessionInstructions[1])+timeGuide;
 }
 
 function showQuestionnaireScreen(){
@@ -811,10 +816,6 @@ function startSessionTimer(){
     div.className='msg ai';div.style.opacity='1';
     div.innerHTML=`<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left:2px solid var(--gold);color:var(--ink);">✦ &nbsp; セッションを始めて60分が経ちました。<br><br>今日の気づきをそろそろまとめていきましょう。<br>準備ができたら「このセッションを完了する」ボタンを押してください。</div>`;
     wrap.appendChild(div);setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),100);
-    const warningText='セッションを始めて60分が経ちました。今日の気づきをそろそろまとめていきましょう。準備ができたら「このセッションを完了する」ボタンを押してください。';
-    conversationHistory.push({role:'assistant',content:warningText});
-    conversationHistory=trimHistory(conversationHistory);
-    if(progress.activeSessions[currentSession]){progress.activeSessions[currentSession].history=conversationHistory;saveProgress();}
   },60*60*1000);
   forceEndTimer=setTimeout(()=>{
     const wrap=document.getElementById('messages');const div=document.createElement('div');
