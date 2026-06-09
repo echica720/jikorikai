@@ -433,6 +433,7 @@ function showClientScreen(existingHistory=[]){
     document.getElementById('chat-intro').style.display='none';
     existingHistory.forEach(msg=>{addMsg(msg.role==='user'?'user':'ai',msg.content);});
     document.getElementById('complete-row').style.display='block';
+    startSessionTimer();
     setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),100);
   }else{
     document.getElementById('chat-intro').style.display='block';
@@ -650,7 +651,13 @@ ${timingInstruction}
   };
 
   const previousSummaries=getPreviousSummaries(sessionNum);
-  const elapsed=sessionStartTime?Math.floor((Date.now()-sessionStartTime)/60000):0;
+  // localStorage累積時間＋今回の経過時間を合算
+  let elapsed=0;
+  try{
+    const raw=localStorage.getItem('inscope_timer_'+sessionId+'_'+sessionNum);
+    if(raw){const saved=JSON.parse(raw);elapsed=(saved.totalElapsed||0)+Math.floor((Date.now()-saved.openedAt)/60000);}
+    else if(sessionStartTime){elapsed=Math.floor((Date.now()-sessionStartTime)/60000);}
+  }catch(e){if(sessionStartTime)elapsed=Math.floor((Date.now()-sessionStartTime)/60000);}
   let timeGuide="";
   if(elapsed>=60){timeGuide="\n\n※【システム通知・非表示】セッション開始から"+elapsed+"分が経過しています。今すぐ振り返りに入り、完了ボタンを案内してください。新しい問いかけはしないでください。";}
   else if(elapsed>=55){timeGuide="\n\n※【システム通知・非表示】セッション開始から"+elapsed+"分が経過しています。今の話を丁寧に受け取りつつ、「今日の気づきを言葉にする」方向へ自然に誘導してください。新しいテーマは広げないでください。";}
@@ -808,27 +815,57 @@ function insertLineBreak(){
   ta.focus();
 }
 
-// タイマー
+// タイマー（localStorage累積時間管理）
+function getTimerKey(){return 'inscope_timer_'+sessionId+'_'+currentSession;}
+
 function startSessionTimer(){
-  sessionStartTime=Date.now();clearSessionTimers();
-  warningTimer=setTimeout(()=>{
-    const wrap=document.getElementById('messages');const div=document.createElement('div');
-    div.className='msg ai';div.style.opacity='1';
-    div.innerHTML=`<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left:2px solid var(--gold);color:var(--ink);">✦ &nbsp; セッションを始めて60分が経ちました。<br><br>今日の気づきをそろそろまとめていきましょう。<br>準備ができたら「このセッションを完了する」ボタンを押してください。</div>`;
-    wrap.appendChild(div);setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),100);
-  },60*60*1000);
-  forceEndTimer=setTimeout(()=>{
-    const wrap=document.getElementById('messages');const div=document.createElement('div');
-    div.className='msg ai';div.style.opacity='1';
-    div.innerHTML=`<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left:2px solid var(--gold);color:var(--ink);">✦ &nbsp; セッションを始めて90分が経ちました。<br><br>今日はここで一区切りにしましょう。<br>気づきをまとめて保存します。</div>`;
-    wrap.appendChild(div);setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),100);
-    document.getElementById('user-input').disabled=true;
-    document.querySelector('.sendbtn').disabled=true;
-    document.getElementById('user-input').placeholder='セッション時間が終了しました';
-    setTimeout(()=>completeSession(),3000);
-  },90*60*1000);
+  clearSessionTimers();
+  // localStorageから累積経過分を取得（閉じていた時間は含まない）
+  let totalElapsed=0;
+  try{
+    const raw=localStorage.getItem(getTimerKey());
+    if(raw){const saved=JSON.parse(raw);totalElapsed=saved.totalElapsed||0;}
+  }catch(e){}
+  // 今回の開始時刻を記録
+  try{localStorage.setItem(getTimerKey(),JSON.stringify({totalElapsed:totalElapsed,openedAt:Date.now()}));}catch(e){}
+  sessionStartTime=Date.now();
+
+  // 残り時間を計算（すでに経過した分を差し引く）
+  const remain60=Math.max(0,(60-totalElapsed)*60*1000);
+  const remain90=Math.max(0,(90-totalElapsed)*60*1000);
+
+  if(remain60>0){
+    warningTimer=setTimeout(()=>{
+      const wrap=document.getElementById('messages');const div=document.createElement('div');
+      div.className='msg ai';div.style.opacity='1';
+      div.innerHTML='<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left:2px solid var(--gold);color:var(--ink);">✦ &nbsp; セッションを始めて60分が経ちました。<br><br>今日の気づきをそろそろまとめていきましょう。<br>準備ができたら「このセッションを完了する」ボタンを押してください。</div>';
+      wrap.appendChild(div);setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),100);
+    },remain60);
+  }
+  if(remain90>0){
+    forceEndTimer=setTimeout(()=>{
+      const wrap=document.getElementById('messages');const div=document.createElement('div');
+      div.className='msg ai';div.style.opacity='1';
+      div.innerHTML='<div class="sender">星読みAI</div><div class="bubble" style="background:#fffdf9;border-left:2px solid var(--gold);color:var(--ink);">✦ &nbsp; セッションを始めて90分が経ちました。<br><br>今日はここで一区切りにしましょう。<br>気づきをまとめて保存します。</div>';
+      wrap.appendChild(div);setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),100);
+      document.getElementById('user-input').disabled=true;
+      document.querySelector('.sendbtn').disabled=true;
+      document.getElementById('user-input').placeholder='セッション時間が終了しました';
+      setTimeout(()=>completeSession(true),3000);
+    },remain90);
+  }else{
+    // すでに90分超えている場合は即強制終了
+    setTimeout(()=>completeSession(true),2000);
+  }
 }
-function clearSessionTimers(){if(warningTimer)clearTimeout(warningTimer);if(forceEndTimer)clearTimeout(forceEndTimer);warningTimer=null;forceEndTimer=null;}
+
+function clearSessionTimers(){
+  if(warningTimer)clearTimeout(warningTimer);
+  if(forceEndTimer)clearTimeout(forceEndTimer);
+  warningTimer=null;forceEndTimer=null;
+  // セッション完了時はlocalStorageもクリア
+  try{localStorage.removeItem(getTimerKey());}catch(e){}
+}
 
 // ダウンロード
 function downloadSummary(sessionNum,text){
@@ -847,9 +884,11 @@ function downloadFinalSummary(text){
 }
 
 // セッション完了
-async function completeSession(){
-  const confirmed=confirm('このセッションを完了しますか？\n\n※完了すると気づきがまとめられます。\nまだ続けたい場合は「キャンセル」を押してください。');
-  if(!confirmed)return;
+async function completeSession(force=false){
+  if(!force){
+    const confirmed=confirm('このセッションを完了しますか？\n\n※完了すると気づきがまとめられます。\nまだ続けたい場合は「キャンセル」を押してください。');
+    if(!confirmed)return;
+  }
   clearSessionTimers();
   document.getElementById('complete-row').style.display='none';
   document.querySelector('.inputarea').style.display='none';
@@ -880,12 +919,14 @@ async function completeSession(){
     const data=await res.json();
     savedSummaryText=data.content[0].text;
     const sessNum=currentSession;
+    window._lastSummaryText=savedSummaryText;
+    window._lastSummaryNum=sessNum;
     summaryDiv.innerHTML=`
       <div class="sender">今日の気づき ✦</div>
       <div class="summary-box">
         <div class="summary-label">✦ &nbsp; THIS SESSION</div>
         <div class="summary-content">${savedSummaryText.replace(/\n/g,'<br>')}</div>
-        <button class="download-btn" onclick="downloadSummary(${sessNum}, \`${savedSummaryText.replace(/\\/g,'\\\\').replace(/`/g,'\\`')}\`)">📄 &nbsp; 気づきをダウンロード</button>
+        <button class="download-btn" onclick="downloadSummary(window._lastSummaryNum, window._lastSummaryText)">📄 &nbsp; 気づきをダウンロード</button>
       </div>`;
   }catch(e){summaryDiv.remove();}
 
@@ -938,12 +979,13 @@ async function completeSession(){
           messages:[{role:'user',content:`5回のセッション全体を統合した総まとめをお願いします。\n\n${horoText}\n\n${allSummaries.join('\n\n')}`}]})});
       const finalData=await finalRes.json();
       const finalText=finalData.content[0].text;
+      window._lastFinalText=finalText;
       finalDiv.innerHTML=`
         <div class="sender">5回の総まとめ ✦</div>
         <div class="final-summary-box">
           <div class="final-summary-label">✦ &nbsp; INSCOPE — 5 SESSIONS COMPLETE</div>
           <div class="final-summary-content">${finalText.replace(/\n/g,'<br>')}</div>
-          <button class="download-btn" onclick="downloadFinalSummary(\`${finalText.replace(/\\/g,'\\\\').replace(/`/g,'\\`')}\`)">📄 &nbsp; 総まとめをダウンロード</button>
+          <button class="download-btn" onclick="downloadFinalSummary(window._lastFinalText)">📄 &nbsp; 総まとめをダウンロード</button>
         </div>`;
     }catch(e){finalDiv.remove();}
   }
@@ -961,6 +1003,20 @@ async function completeSession(){
   wrap.appendChild(backDiv);
   setTimeout(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}),100);
 }
+
+// ページを閉じる時に開いていた時間だけ累積保存
+window.addEventListener('beforeunload',()=>{
+  if(!sessionId||!currentSession)return;
+  try{
+    const raw=localStorage.getItem('inscope_timer_'+sessionId+'_'+currentSession);
+    if(raw){
+      const saved=JSON.parse(raw);
+      const sinceOpen=Math.floor((Date.now()-(saved.openedAt||Date.now()))/60000);
+      const newTotal=(saved.totalElapsed||0)+sinceOpen;
+      localStorage.setItem('inscope_timer_'+sessionId+'_'+currentSession,JSON.stringify({totalElapsed:newTotal,openedAt:Date.now()}));
+    }
+  }catch(e){}
+});
 </script>
 </body>
 </html>
