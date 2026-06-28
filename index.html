@@ -332,9 +332,14 @@ function selectPlan(plan){
   document.getElementById('plan-full').classList.toggle('selected',plan==='full');
 }
 
-function trimHistory(history){
-  if(history.length<=20)return history;
-  return[...history.slice(0,2),...history.slice(-18)];
+// 【修正】AIに「送る」ぶんだけを軽くする関数。
+// 保存される会話（conversationHistory）には一切手を加えない。
+// 先頭2件（セッションの導入）＋直近の会話だけをAIに渡す。
+// ※保存は常にフル。だから何往復しても会話は消えない。
+function trimForSending(history){
+  const KEEP_RECENT=30; // 直近この件数をAIに渡す（往復にすると約15回ぶん）
+  if(history.length<=KEEP_RECENT+2)return history;
+  return[...history.slice(0,2),...history.slice(-KEEP_RECENT)];
 }
 
 function getPreviousSummaries(upToSession){
@@ -757,15 +762,16 @@ async function callAI(isFirst=false){
   typing.style.display='block';
   window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
   try{
-    const messages=isFirst?[{role:'user',content:'セッションを始めてください。'}]:conversationHistory;
+    // 【修正】AIに送るのは軽くしたコピー。元のconversationHistoryは丸ごと残す。
+    const messages=isFirst?[{role:'user',content:'セッションを始めてください。'}]:trimForSending(conversationHistory);
     const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2500,system:buildSystemPrompt(currentSession,userContext),messages})});
     const data=await res.json();
     if(!res.ok)throw new Error(data.error?.message||'APIエラー');
     const txt=data.content[0].text;
-    if(isFirst){conversationHistory=[{role:'user',content:'セッションを始めてください.'},{role:'assistant',content:txt}];}
+    if(isFirst){conversationHistory=[{role:'user',content:'セッションを始めてください。'},{role:'assistant',content:txt}];}
     else{conversationHistory.push({role:'assistant',content:txt});}
-    conversationHistory=trimHistory(conversationHistory);
+    // 【修正】ここで会話を切り詰めない。フルのまま保存する（前半が消えない）。
     if(progress.activeSessions[currentSession]){progress.activeSessions[currentSession].history=conversationHistory;saveProgress();}
     typing.style.display='none';
     addMsg('ai',txt);
