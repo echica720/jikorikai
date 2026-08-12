@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>星読み × AI自己理解メソッド</title>
+<title>INSCOPE｜星図とAI対話による自己理解プログラム</title>
 <style>
 :root{--gold:#b8965a;--gold-light:#d4b483;--deep:#2d2420;--paper:#f7f3ee;--mist:#e8e2d9;--ink:#1a1410;--accent:#7a5c3a;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -138,13 +138,30 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 </head>
 <body>
 
-<!-- 認定者パネル -->
+<!-- 運営パネル -->
 <div id="operator-screen">
 <div class="card">
-  <div class="ttl">星読み × AI自己理解メソッド【INSCOPE】</div>
-  <div class="sub">Certified Practitioner Panel</div>
-  <div class="sec">クライアント情報</div>
-  <input type="text" id="client-name" placeholder="クライアントのお名前（任意）" />
+  <div class="ttl">INSCOPE｜星図とAI対話による自己理解プログラム</div>
+  <div class="sub">Operator Panel</div>
+  <div class="sec">登録済みの方から呼び出す</div>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <select id="client-picker" style="flex:1;"><option value="">— 保存された星図はまだありません —</option></select>
+    <button class="reset-num-btn" onclick="loadClient()" style="white-space:nowrap;">呼び出す</button>
+  </div>
+  <div id="ledger-note" class="q-note" style="margin-top:6px;"></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+    <button class="reset-num-btn" onclick="saveClientManual()">この星図を保存／上書き</button>
+    <button class="reset-num-btn" onclick="exportClients()">バックアップを書き出す</button>
+    <button class="reset-num-btn" onclick="document.getElementById('import-file').click()">バックアップを読み込む</button>
+    <button class="reset-num-btn" onclick="deleteClient()">選択中を削除</button>
+    <input type="file" id="import-file" accept="application/json" style="display:none;" onchange="importClients(event)" />
+  </div>
+
+  <div class="sec" style="margin-top:24px;">クライアント情報</div>
+  <input type="text" id="client-name" placeholder="ご氏名（台帳の見出しになります）" />
+  <input type="text" id="client-callname" placeholder="呼び名（例：ひろちゃん／あっきーちゃん）" style="margin-top:8px;" />
+  <div class="row" style="margin-top:8px;"><span class="lbl">生年月日</span><input type="date" id="client-birth" style="flex:1;" /></div>
+  <div class="q-note" style="margin-top:4px;">呼び名は、AIがセッション中に呼びかけるときに使います。空欄なら「ご氏名＋さん」で呼びかけます。生年月日は同じお名前の方を見分けるための目印で、AIには渡りません。</div>
   <div class="sec">天体・星座・ハウス</div>
   <div class="grid">
     <div class="row"><span class="lbl">太陽</span><select id="sun-sign"><option value="">星座</option><option>牡羊座</option><option>牡牛座</option><option>双子座</option><option>蟹座</option><option>獅子座</option><option>乙女座</option><option>天秤座</option><option>蠍座</option><option>射手座</option><option>山羊座</option><option>水瓶座</option><option>魚座</option></select><select id="sun-house" style="flex:0.6"><option value="">H</option><option>1H</option><option>2H</option><option>3H</option><option>4H</option><option>5H</option><option>6H</option><option>7H</option><option>8H</option><option>9H</option><option>10H</option><option>11H</option><option>12H</option></select></div>
@@ -168,7 +185,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
   <textarea id="aspects" placeholder="例：&#10;・太陽（牡羊座）× 土星（蠍座）― 150度&#10;・月（蟹座）× 火星（山羊座）― 180度"></textarea>
   <div class="sec" style="margin-top:24px;">リピーター用 前回の気づき引き継ぎ</div>
   <textarea id="prev-insights" placeholder="例：&#10;・自分が人の期待に応えようとするパターンに気づいた&#10;・本当にやりたいことを後回しにしてきたとわかった&#10;&#10;※前回の総まとめや気づきをここに貼り付けてください。AIが引き継ぎ情報として読み込みます。" style="min-height:96px;"></textarea>
-  <div class="sec" style="margin-top:24px;">セッションリセット（認定者専用）</div>
+  <div class="sec" style="margin-top:24px;">セッションリセット（運営専用）</div>
   <div style="display:flex;flex-direction:column;gap:8px;">
     <input type="text" id="reset-session-id" placeholder="セッションID（URLの ?s= 以降）" />
     <div style="display:flex;gap:6px;flex-wrap:wrap;" id="reset-btns">
@@ -213,7 +230,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 <div id="session-screen">
   <div class="sess-card">
     <div class="sess-header">
-      <div class="sess-logo">星読み × AI自己理解メソッド【INSCOPE】</div>
+      <div class="sess-logo">INSCOPE｜星図とAI対話による自己理解プログラム</div>
       <div class="sess-name" id="sess-client-name">セッションを選んでください</div>
       <div id="expiry-badge" class="expiry-badge" style="display:none;"></div>
     </div>
@@ -228,7 +245,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 <div id="questionnaire-screen">
   <div class="q-card">
     <div class="q-header">
-      <div class="q-logo">星読み × AI自己理解メソッド【INSCOPE】</div>
+      <div class="q-logo">INSCOPE｜星図とAI対話による自己理解プログラム</div>
       <div class="q-title" id="q-sess-title">セッションを始める前に</div>
       <div class="q-sub">あなたの言葉が、対話をより深くします。<br>答えたくない項目は飛ばしてもかまいません。</div>
     </div>
@@ -246,7 +263,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
     <div class="q-section">
       <span class="q-label">✦ &nbsp; もう少し具体的に教えてください。</span>
       <textarea class="q-textarea" id="q-detail" placeholder="例：転職を考えているけれど、なかなか踏み出せない&#10;例：同じパターンの人間関係を繰り返している気がする&#10;&#10;書きたくなければ、そのまま進んでいただいて大丈夫です。" rows="4"></textarea>
-      <div class="q-note">※ ここに書いた内容はAIのみが読み込みます。認定者には共有されません。</div>
+      <div class="q-note">※ ここに書いた内容はAIのみが読み込みます。ほかの誰にも共有されません。</div>
     </div>
     <button class="q-btn" id="q-start-btn" onclick="startWithQuestionnaire()" disabled>✦ &nbsp; セッションを始める &nbsp; ✦</button>
   </div>
@@ -255,7 +272,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.9;}
 <!-- チャット画面 -->
 <div id="client-screen">
   <div class="cheader">
-    <div class="ctitle">星読み × AI自己理解メソッド【INSCOPE】</div>
+    <div class="ctitle">INSCOPE｜星図とAI対話による自己理解プログラム</div>
     <div class="csess" id="chat-sess-label"></div>
   </div>
   <div class="chatbox">
@@ -375,8 +392,8 @@ function showSessionScreen(){
   document.getElementById('questionnaire-screen').style.display='none';
   document.getElementById('session-screen').style.display='flex';
   currentSession=null;
-  const name=sessionData.clientName;
-  document.getElementById('sess-client-name').textContent=name?`${name} さんのセッション`:'セッションを選んでください';
+  const label=sessionData.callName?sessionData.callName:(sessionData.clientName?`${sessionData.clientName} さん`:'');
+  document.getElementById('sess-client-name').textContent=label?`${label}のセッション`:'セッションを選んでください';
   const remaining=Math.ceil((sessionData.expires-Date.now())/(1000*60*60*24));
   const badge=document.getElementById('expiry-badge');
   if(remaining<=3){badge.textContent=`⚠️ 残り${remaining}日`;badge.className='expiry-badge urgent';}
@@ -450,6 +467,9 @@ function buildSystemPrompt(sessionNum,userContext={}){
   const d=sessionData;
   const lines=Object.entries(d.planets).map(([p,v])=>`${p}：${v.sign}${v.house?`（${v.house}）`:''}`).join('\n');
   const ascmc=[d.asc?`ASC：${d.asc}`:'',d.mc?`MC：${d.mc}`:''].filter(Boolean).join('\n');
+  const callLabel=d.callName||(d.clientName?`${d.clientName}さん`:'');
+  const callNameSection=callLabel
+    ?`\n\n【呼びかけ方】\nこの方のことは「${callLabel}」と呼んでください。会話の中で自然に、多用しすぎない程度に名前を添えます。ほかの呼び方には言い換えません。`:'';
   const prevInsightsSection=d.prevInsights
     ?`\n━━━━━━━━━━━━━━━━━━━━━━\n【前回シリーズからの引き継ぎ情報】\n━━━━━━━━━━━━━━━━━━━━━━\n${d.prevInsights}\n\n※上記は前回のセッションシリーズでクライアントが得た気づきです。今回のセッションでも自然な流れで活かしてください。`:'';
   const userContextSection=(userContext&&(userContext.theme||userContext.detail))
@@ -462,7 +482,7 @@ ${ascmc}
 
 【主なアスペクト】
 ${d.aspects||'（アスペクト情報なし）'}
-${prevInsightsSection}${userContextSection}`;
+${callNameSection}${prevInsightsSection}${userContextSection}`;
 
   // ▼ 修正②：プランに応じた締め言葉を出し分け
   const isTrial = d.plan === 'trial';
@@ -490,7 +510,7 @@ ${prevInsightsSection}${userContextSection}`;
 
 【最初の挨拶】
 セッション開始時は必ず以下の形式で始めてください：
-「星読み×AI自己理解メソッド【INSCOPE】へようこそ。」
+「INSCOPE｜星図とAI対話による自己理解プログラムへようこそ。」
 その後、自然な流れで対話に入ってください。
 
 【このセッションの目的】
@@ -557,7 +577,7 @@ ${closingWords}`,
 【このセッションの目的】
 クライアントが「自分の中に繰り返しやすいパターン」を星を通して安全に知り、いざそのパターンが現れたとき「あ、これか」と気づいて、軌道修正したり、流れに乗ったり、無理に進まない選択ができるようになること。
 
-事前に防ぐためではなく、起きたときに「気づける自分」になるための内なる地図を一緒に作ります。
+起きたときに「あ、これか」と気づける自分になること。そのための手がかりを、一緒に見つけていきます。
 
 【重点天体】キロン・土星・冥王星
 【重点アスペクト】スクエア（90度）・オポジション（180度）・コンジャンクション（0度）
@@ -695,6 +715,158 @@ async function startWithQuestionnaire(){
   showClientScreen();
 }
 
+/* ═══ クライアント台帳（このブラウザに保存・書き出し可） ═══ */
+const LEDGER_KEY='inscope_clients';
+
+function ledgerKey(name,birth){return birth?`${name}__${birth}`:name;}
+function ledgerDisplay(key,rec){
+  let name=(rec&&rec.clientName)||key.split('__')[0];
+  const call=(rec&&rec.callName)||'';
+  if(call&&call!==name)name=`${name}／${call}`;
+  const b=(rec&&rec.birth)||'';
+  if(b){const d=new Date(b+'T00:00:00');return `${name}（${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}）`;}
+  const w=rec&&rec.savedAt?new Date(rec.savedAt).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'}):'';
+  return w?`${name}（${w}保存）`:name;
+}
+function ledgerRead(){
+  try{return JSON.parse(localStorage.getItem(LEDGER_KEY)||'{}');}catch(e){return {};}
+}
+function ledgerWrite(obj){
+  try{localStorage.setItem(LEDGER_KEY,JSON.stringify(obj));return true;}
+  catch(e){setLedgerNote('保存できませんでした。ブラウザの空き容量を確認してください。');return false;}
+}
+function setLedgerNote(msg){
+  const el=document.getElementById('ledger-note');if(el)el.textContent=msg||'';
+}
+function refreshPicker(selectName){
+  const sel=document.getElementById('client-picker');if(!sel)return;
+  const led=ledgerRead();
+  const names=Object.keys(led).sort((a,b)=>(led[b].savedAt||0)-(led[a].savedAt||0));
+  sel.innerHTML='';
+  if(names.length===0){
+    sel.innerHTML='<option value="">— 保存された星図はまだありません —</option>';
+    setLedgerNote('セッションを作成すると、お名前と星図がこの端末に保存されます。');
+    return;
+  }
+  sel.appendChild(new Option('— お名前を選ぶ —',''));
+  names.forEach(k=>{
+    sel.appendChild(new Option(ledgerDisplay(k,led[k]),k));
+  });
+  if(selectName&&led[selectName])sel.value=selectName;
+  setLedgerNote(`${names.length}名ぶんの星図を保存中`);
+}
+
+function saveClientFromForm(){
+  const name=document.getElementById('client-name').value.trim();
+  const birth=document.getElementById('client-birth').value;
+  if(!name)return; // 名前がなければ保存しない
+  const key=ledgerKey(name,birth);
+  const planets={};
+  PLANET_IDS.forEach(id=>{
+    planets[id]={sign:document.getElementById(`${id}-sign`).value,house:document.getElementById(`${id}-house`).value};
+  });
+  const led=ledgerRead();
+  led[key]={
+    clientName:name,
+    callName:document.getElementById('client-callname').value.trim(),
+    birth,
+    planets,
+    asc:document.getElementById('asc-sign').value,
+    mc:document.getElementById('mc-sign').value,
+    aspects:document.getElementById('aspects').value.trim(),
+    prevInsights:document.getElementById('prev-insights').value.trim(),
+    savedAt:Date.now()
+  };
+  if(ledgerWrite(led))refreshPicker(key);
+}
+
+function saveClientManual(){
+  const name=document.getElementById('client-name').value.trim();
+  if(!name){setLedgerNote('お名前を入れてから保存してください。お名前が呼び出すときの目印になります。');return;}
+  const key=ledgerKey(name,document.getElementById('client-birth').value);
+  const existed=!!ledgerRead()[key];
+  saveClientFromForm();
+  setLedgerNote(existed?`${name}さんの星図を上書きしました。`:`${name}さんの星図を保存しました。`);
+}
+
+function loadClient(){
+  const key=document.getElementById('client-picker').value;
+  if(!key){setLedgerNote('お名前を選んでから呼び出してください。');return;}
+  const d=ledgerRead()[key];
+  if(!d){setLedgerNote('この星図は見つかりませんでした。');return;}
+  const name=d.clientName||key.split('__')[0];
+  document.getElementById('client-name').value=name;
+  document.getElementById('client-callname').value=d.callName||'';
+  document.getElementById('client-birth').value=d.birth||'';
+  PLANET_IDS.forEach(id=>{
+    const p=(d.planets&&d.planets[id])||{};
+    document.getElementById(`${id}-sign`).value=p.sign||'';
+    document.getElementById(`${id}-house`).value=p.house||'';
+  });
+  document.getElementById('asc-sign').value=d.asc||'';
+  document.getElementById('mc-sign').value=d.mc||'';
+  document.getElementById('aspects').value=d.aspects||'';
+  document.getElementById('prev-insights').value=d.prevInsights||'';
+  document.getElementById('op-error').style.display='none';
+  const when=d.savedAt?new Date(d.savedAt).toLocaleDateString('ja-JP'):'';
+  setLedgerNote(`${name}さんの星図を入力しました${when?`（${when}に保存）`:''}。前回の気づきは、必要に応じて書き換えてください。`);
+}
+
+function deleteClient(){
+  const key=document.getElementById('client-picker').value;
+  if(!key){setLedgerNote('削除するお名前を選んでください。');return;}
+  const led=ledgerRead();
+  const label=led[key]?ledgerDisplay(key,led[key]):key;
+  if(!confirm(`${label} の星図をこの端末から削除します。よろしいですか？`))return;
+  delete led[key];
+  if(ledgerWrite(led)){refreshPicker();setLedgerNote(`${label} の星図を削除しました。`);}
+}
+
+function exportClients(){
+  const led=ledgerRead();
+  const n=Object.keys(led).length;
+  if(n===0){setLedgerNote('書き出せる星図がまだありません。');return;}
+  const blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),clients:led},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  const d=new Date();
+  const stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  a.href=URL.createObjectURL(blob);
+  a.download=`inscope_clients_${stamp}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  setLedgerNote(`${n}名ぶんを書き出しました。このファイルを保管しておけば、別の端末でも復元できます。`);
+}
+
+function importClients(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const parsed=JSON.parse(reader.result);
+      const incoming=parsed.clients||parsed;
+      if(typeof incoming!=='object'||Array.isArray(incoming))throw new Error('形式');
+      const led=ledgerRead();
+      let added=0,updated=0;
+      Object.keys(incoming).forEach(name=>{
+        if(led[name])updated++;else added++;
+        led[name]=incoming[name];
+      });
+      if(ledgerWrite(led)){
+        refreshPicker();
+        setLedgerNote(`読み込みました（新規${added}名／上書き${updated}名）。`);
+      }
+    }catch(e){
+      setLedgerNote('このファイルは読み込めませんでした。書き出したJSONファイルを選んでください。');
+    }
+    ev.target.value='';
+  };
+  reader.onerror=()=>{setLedgerNote('ファイルを開けませんでした。');ev.target.value='';};
+  reader.readAsText(file);
+}
+
+window.addEventListener('DOMContentLoaded',()=>{try{refreshPicker();}catch(e){}});
+
 async function generateSession(){
   document.getElementById('op-error').style.display='none';
   const planets={};
@@ -712,6 +884,7 @@ async function generateSession(){
     aspects:document.getElementById('aspects').value.trim(),
     prevInsights:document.getElementById('prev-insights').value.trim(),
     clientName:document.getElementById('client-name').value.trim(),
+    callName:document.getElementById('client-callname').value.trim(),
     plan:selectedPlan,
     expires:Date.now()+(isTrial?7:30)*24*60*60*1000,
   };
@@ -727,6 +900,7 @@ async function generateSession(){
     const planLabel=isTrial?'第1章プラン（第1回のみ・7日間）':'フルプラン（全5回・30日間）';
     const d=new Date(obj.expires).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
     document.getElementById('expiry-note').textContent=`${planLabel} ／ 有効期限：${d}まで`;
+    try{saveClientFromForm();}catch(e){}
     const rb=document.getElementById('result-box');rb.style.display='block';rb.scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(e){showOpError(e.message);}
   btn.disabled=false;btn.querySelector('span').textContent='✦ 　セッションを作成する 　✦';
