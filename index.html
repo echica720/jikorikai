@@ -939,7 +939,7 @@ async function callAI(isFirst=false){
     // 【修正】AIに送るのは軽くしたコピー。元のconversationHistoryは丸ごと残す。
     const messages=isFirst?[{role:'user',content:'セッションを始めてください。'}]:trimForSending(conversationHistory);
     const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2500,system:buildSystemPrompt(currentSession,userContext),messages})});
+      body:JSON.stringify({sessionId,max_tokens:2500,system:buildSystemPrompt(currentSession,userContext),messages})});
     const data=await res.json();
     if(!res.ok)throw new Error(data.error?.message||'APIエラー');
     const txt=data.content[0].text;
@@ -1094,8 +1094,8 @@ async function completeSession(force=false){
 ・前置きや後置きは不要。箇条書きのみ返す
 ・各項目は「・」で始める`;
     const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,system:summarySystem,
-        messages:[...conversationHistory,{role:'user',content:'このセッションで私が気づいたこと・感じたことを箇条書きでまとめてください。'}]})});
+      body:JSON.stringify({sessionId,max_tokens:800,system:summarySystem,
+        messages:[...trimForSending(conversationHistory),{role:'user',content:'このセッションで私が気づいたこと・感じたことを箇条書きでまとめてください。'}]})});
     const data=await res.json();
     savedSummaryText=data.content[0].text;
     const sessNum=currentSession;
@@ -1136,7 +1136,7 @@ async function completeSession(force=false){
       const horoText=`【ホロスコープデータ】\n${planetLines}\n${ascMcLines}\n\n【主なアスペクト】\n${d.aspects||'（なし）'}`;
 
       const finalRes=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2500,  // ▼ 修正④：2500に引き上げ
+        body:JSON.stringify({sessionId,max_tokens:2500,  // ▼ 修正④：2500に引き上げ
           system:`あなたはセッション全体の統合サポーターです。
 ホロスコープデータと5回のセッションを通じたクライアントの気づきを統合し、「あなたという人間の本質」を温かく・肯定的にまとめてください。
 
